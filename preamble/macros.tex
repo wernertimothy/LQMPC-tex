@@ -1,0 +1,115 @@
+% set definition
+\newcommand{\R}[1]{\mathbb{R}^{#1}}         % reals
+\newcommand{\Sp}[1]{\mathbb{S}_{+}^{#1}}    % symmetric positive semi-definite
+\newcommand{\Spp}[1]{\mathbb{S}_{++}^{#1}}  % symmetric positive definite
+\newcommand{\Xset}{\mathcal{X}}             % constrained state space
+\newcommand{\Yset}{\mathcal{Y}}             % constrained output space
+\newcommand{\Uset}{\mathcal{U}}             % constrained input space
+
+% math related
+\newcommand{\f}[1]{\mathbf{#1}}             % for vector and matrices
+\newcommand{\T}{^\top}                      % transpose
+
+% vectors and matrices
+\newcommand{\vxuone}[1]{
+    \begin{bmatrix}
+        x_{#1} \\
+        u_{#1} \\
+        1
+    \end{bmatrix}
+}
+\newcommand{\Hcoststacked}[1]{
+    \begin{bmatrix}
+        Q_{#1}   & S_{#1}  & q_{#1} \\
+        S_{#1}\T & R_{#1}  & r_{#1} \\
+        q_{#1}\T & r_{#1}\T & 0
+    \end{bmatrix}
+}
+
+% colors
+\definecolor{darkblue}{rgb}{0.0,0.0,0.3}
+\newcommand{\myTitleColor}{black}
+\newcommand{\myLinkColor}{darkblue}
+
+% title
+\newcommand{\myTitle}{Linear Quadraric Model Predictive Control}
+\newcommand{\mySubtitle}{Notes from Theory to Praxis}
+\newcommand{\Author}{Timothy Werner}
+\renewcommand{\maketitle}[1]{
+	\begin{center}
+		\begin{mdframed}[
+			leftmargin=.5cm,
+			rightmargin=.5cm,
+			leftline=false,
+			rightline=false,
+			topline=false,
+			bottomline=true,
+			linewidth=1pt
+			]
+			\begin{flushleft}
+				\textcolor{\myTitleColor}{\textbf{\LARGE \myTitle}\text{\large : \mySubtitle}}
+			\end{flushleft}
+		\end{mdframed}
+	\end{center}
+	\begin{center}
+		\begin{mdframed}[
+			leftmargin=1cm,
+			rightmargin=1cm,
+			leftline=false,
+			rightline=false,
+			topline=false,
+			bottomline=false
+			]
+			\begin{flushright}
+				\textbf{\Author}\\
+			\end{flushright}
+		\end{mdframed}
+	\end{center}
+}
+
+% abstract
+\newcommand{\makeabstract}{
+	\begin{center}
+		\begin{mdframed}[
+				leftmargin=.5cm,
+				rightmargin=.5cm,
+				leftline=false,
+				rightline=false,
+				topline=false,
+				bottomline=true,
+				linewidth=1pt
+			]
+			% abstract
+			\begin{minipage}[t]{0.1\textwidth}
+				\textcolor{\myTitleColor}{\textbf{Abstract}.}
+			\end{minipage}
+			\hfill
+			\begin{minipage}[t]{0.8\textwidth}
+				\input{sections/abstract}
+			\end{minipage}
+			% keywords
+			\begin{minipage}[t]{0.1\textwidth}
+				\textcolor{\myTitleColor}{\textbf{Keywords}.}
+			\end{minipage}
+			\hfill
+			\begin{minipage}[t]{0.8\textwidth}
+				\input{sections/keywords}
+			\end{minipage}
+		\end{mdframed}
+	\end{center}
+}
+
+% content
+\newcommand{\makecontent}{
+	\begin{mdframed}[
+		%leftmargin=1cm,
+		%rightmargin=1cm,
+		leftline=false,
+		rightline=false,
+		topline=false,
+		bottomline=false,
+		linewidth=1pt,
+		]
+		\tableofcontents
+	\end{mdframed}
+}

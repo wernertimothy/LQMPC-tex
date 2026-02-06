@@ -1,0 +1,21 @@
+
+\section{The linear-quadratic OCP}
+The finite-horizon linear-quadratic optimal control problem is formulated as follows:
+
+\begin{equation*}
+\begin{aligned}
+& \underset{x_k, u_k}{\text{minimize}} & & \sum_{k=0}^{N} \frac{1}{2} \vxuone{k}\T \Hcoststacked{k} \vxuone{k} \\
+& \text{subject to} & & x_0 = \hat{x}\\
+& & & x_{k+1} = A_k x_k + B_k u_k + c_k\\
+\end{aligned}
+\end{equation*}
+
+With the states $x_k \in\Xset\subseteq\R{n_x}$ and inputs $u_k \in\Uset\subseteq\R{n_u}$.
+The state and input dimensions are $n_x$ and $n_u$, respectively.
+The time horizon is $N \in \mathbb{N}_{>0}$ and the initial state is given as $\hat{x} \in \Xset$.
+The system dynamics are described by the matrices $A_k \in \R{n_x \times n_x}$, $B_k \in \R{n_x \times n_u}$ and the vector $c_k \in \R{n_x}$.
+The cost function is defined by the state weight $Q_k \in \Sp{n_x}$, which is required to be symmetric positive-semi definite.
+The input weight $R_k$, which is required to be symmetric and positive-definite on the control subspace $R_k - S_k\T Q_k^{-1} S_k \in \Spp{n_u \times n_u}$, and the cross-term weight $S_k \in \R{n_u \times n_x}$.
+The linear terms of the cost function are given by the vectors $q_k \in \R{n_x}$ and $r_k \in \R{n_u}$.
+
+\newpage

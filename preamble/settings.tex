@@ -1,0 +1,44 @@
+
+% appearance
+\setlength\parindent{0pt}   % Remove indent on new paragraph
+
+% hyperref
+\hypersetup{
+	colorlinks,
+	linkcolor={\myLinkColor},
+	citecolor={\myLinkColor},
+	urlcolor={\myLinkColor}
+}
+
+% margin settings
+ \geometry{
+	a4paper,
+	%left=20mm,
+	%right=20mm,
+	inner=35mm,
+	outer=40mm,
+	top=30mm,
+	bottom=30mm
+}
+
+% sections
+%\sectionfont{\color{\myLinkColor}}
+\sectionfont{\bfseries\normalsize}
+\subsectionfont{\bfseries\normalsize}
+% \titleformat{\section}
+% 	{\fontsize{14}{16}\selectfont\bfseries}
+\titleformat{\subsection}[runin]
+  {\normalfont\bfseries}   % Style
+  {\thesubsection.}        % Numbering
+  {0.5em}                  % Space between number and title
+  {}                       % Before-code
+  [.]                      % After-code (adds a period)
+
+% headers
+\pagestyle{fancy}
+\fancyhf{} % clear default
+\renewcommand{\headrulewidth}{0.0pt} % 0pt means no line
+\renewcommand{\footrulewidth}{0.0pt} % 0pt means no line
+\fancyfoot[C]{\thepage}
+%\fancyhead[LE]{\thepage \, \textit{\mytitle}}
+%\fancyhead[RO]{\textit{\mytitle} \, \thepage}
