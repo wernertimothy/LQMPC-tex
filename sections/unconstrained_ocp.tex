@@ -175,27 +175,30 @@ Solve $L_Y z = \beta$ by forward subsditution, solve $L_Y\T \pi = z$ by backward
 \subsubsection{From KKT to Dynamic Programming}
 
 The third approach is to notice, that the problem also has temporal structure.
-To be fair, the spacial structure we exploited above stems exactly from that temporal structure.
+To be fair, the spacial structure we exploited above stems exactly from that temporal structure, but the interpretation takes on a differnt route.
+Let's take a closer look at the KKT conditions to see the temporal relationship.
+The stationarity conditions with respect to $x_k$ can be rewritten as
 
-
-The KKT conditions derived above form a system of $2n_x + n_u$ equations per stage, 
-coupled across all time steps.
-While we could assemble these into a large block-tridiagonal 
-linear system and solve directly, there is a more elegant approach that exploits the 
-temporal structure of the problem.
-
-\textbf{Key observation:} The stationarity condition with respect to $x_k$ can be rewritten as
 \[
 \pi_k = Q_k x_k + S_k u_k + q_k + A_k\T \pi_{k+1}
 \]
-This reveals that $\pi_k$ propagates \textit{backward} in time, while the dynamics 
-$x_{k+1} = A_k x_k + B_k u_k + c_k$ propagate \textit{forward}. 
-The coupling between these two directions is what makes the problem non-trivial.
 
-Dynamic programming resolves this by asking: \textit{if we knew the optimal cost-to-go 
-from any state $x_k$ at time $k$, what would the optimal action be?}
+This reveals that the dynamics of the costates $\pi_k$ propagate \textit{backward} in time. 
+The stationarity conditions with respect to $\pi_k$ reveal that the dynamics of the states $x_k$ propagate \textit{forward} in time.
 
-\subsection{Dynamic Programming and the Principle of Optimality}
+\[
+x_{k+1} = A_k x_k + B_k u_k + c_k
+\]
+
+Both dynamics are coupled via the staionarity conditions for the inputs $u_k$
+
+\[ 
+R_k u_k + S_k\T x_k + r_k + B_k\T \pi_{k+1} = 0
+\]
+
+
+
+\textbf{Dynamic Programming and the Principle of Optimality}
 
 Define the \textbf{optimal cost-to-go} (or value function) as the minimum cost 
 achievable from state $x_k$ at time $k$:

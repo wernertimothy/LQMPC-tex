@@ -34,6 +34,13 @@
   {}                       % Before-code
   [.]                      % After-code (adds a period)
 
+\titleformat{\subsubsection}[runin]
+  {\normalfont\bfseries}   % Style
+  {\thesubsubsection.}     % Numbering
+  {0.5em}                  % Space between number and title
+  {}                       % Before-code
+  [.]                      % After-code (adds a period)
+
 % headers
 \pagestyle{fancy}
 \fancyhf{} % clear default
