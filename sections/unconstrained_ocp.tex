@@ -2,61 +2,75 @@
 \section{Unconstrained linear-quadratic OCP}
 
 This section serves to explain the solution of the KKT system, which sits at the core of solving linear-quadratic optimal control problems.
-Even optimal control problems in general.
-Let's look at the unconstrained finite-horizon linear-quadratic optimal control problem, which is formulated as follows.
+To gain a better understanding, we will first consider the unconstrained problem.
+The unconstrained finite-horizon linear-quadratic optimal control problem is formulated as follows.
 
 \[
 \begin{aligned}
     & \underset{x_k, u_k}{\text{minimize}} & & \sum_{k=0}^{N} \frac{1}{2} \vxuone{k}\T \Hcoststacked{k} \vxuone{k} \\
     & \text{subject to} & & x_0 = \hat{x}\\
-    & & & x_{k+1} = A_k x_k + B_k u_k + c_k\\
+    & & & x_{k+1} = A_k x_k + B_k u_k + b_k\\
 \end{aligned}
 \]
 
 Note that \textit{unconstrained} in this case means that there are no \textit{inequality} constraints on states or inputs.
 The only constraints are the system dynamics and the initial state, but these are primal feasibility constraints, which means they must be satisfied in order to attain a feasible solution.
-They are thus not a constraint on the problem in the sense of restricting the solution space.
+They are thus not a constraint on the problem in the sense of restricting the solution space, rather an information to the problem about the underlying dynamics inherent to the system.
+Let's look at how we can compute a solution to this problem.
+
+\subsection{Solution via Equlaity Constraint Elimination}
 
 \subsection{Solution via Karush-Kuhn-Tucker}
 
-In terms of numeric optimization, the OCP above is an equlaity-constrained QP, which is convex and thus has a unique solution.
-This solution is characterized by the Karush-Kuhn-Tucker (KKT) conditions.
-To derive the KKT conditions, we first form the Lagrangian by introducing the Lagrange multipliers $\pi_k \in \R{n_x}$ for the dynamics constraints.
+In terms of numeric optimization, the OCP above is an equlaity-constrained QP, which is convex in the decision variables $x_k$ and $u_k$.
+It is convex, because the cost function is quadratic in $x_k$ and $u_k$ with $Q_k \in \Sp{n_x}$ and $R_k - S_k\T Q_k^{-1} S_k \in \Spp{n_u \times n_u}$ per definition and the equlaity constraints are affine in $x_k$ and $u_k$.
+Since the problem is convex, it has a uniuque solution.
+This solution is sufficiently characterized by the famous Karush-Kuhn-Tucker (KKT) conditions.
+To derive the KKT conditions, we first form the Lagrangian by introducing the Lagrange multipliers $\pi_k \in \R{n_x}$ for the dynamic constraints.
 
 \[
 \mathcal{L}(x_k, u_k, \pi_k) = \sum_{k=0}^{N-1} l_k(x_k, u_k) + l_N(x_N) + \sum_{k=0}^{N-1} \pi_{k+1}\T (A_k x_k + B_k u_k + c_k - x_{k+1})
 \]
 
 With the stage cost
+
 \[
 l_k(x_k, u_k) = \frac{1}{2} x_k\T Q_k x_k + \frac{1}{2} u_k\T R_k u_k + x_k\T S_k\T u_k + q_k\T x_k + r_k\T u_k
 \]
 
 and terminal cost
+
 \[
 l_N(x_N) = \frac{1}{2} x_N\T Q_N x_N + q_N\T x_N
 \]
 
-The KKT conditions are obtained by the stationary conditions, which says that the Lagrangian becomes stationary at the optimal solution with respect to all primal and dual variables.
-The stationary conditions are given as follows.
+The KKT conditions are obtained by the stationary conditions, which say, that the Lagrangian becomes stationary at the optimal solution $(x_k^*, u_k^*, \pi_k^*)$ with respect to all primal and dual variables.
 
-Stationary w.r.t. states $x_k$ (for $k=0,\dots,N$):
+\[
+\nabla \mathcal{L}(x_k^*, u_k^*, \pi_k^*) = 0
+\]
+
+The stationary conditions are given as follows.
+Stationary w.r.t. states $x_k$ for $k\in\Iset{0}{N-1}$:
+
 \[
 \nabla_{x_k} \mathcal{L} = Q_k x_k + S_k u_k + q_k + A_k\T \pi_{k+1} - \pi_k = 0
 \]
 
-Stationary w.r.t. inputs $u_k$ (for $k=0,\dots,N-1$):
+Stationary w.r.t. inputs $u_k$ for $k\in\Iset{0}{N-1}$:
+
 \[ 
 \nabla_{u_k} \mathcal{L} = R_k u_k + S_k\T x_k + r_k + B_k\T \pi_{k+1} = 0
 \]
 
-Stationary w.r.t. Lagrange multipliers $\pi_k$ (for $k=1,\dots,N$):
+Stationary w.r.t. Lagrange multipliers $\pi_k$ for $k\in\Iset{1}{N}$:
+
 \[
 \nabla_{\pi_k} \mathcal{L} = A_{k-1} x_{k-1} + B_{k-1} u_{k-1} + c_{k-1} - x_k = 0
 \]
 
-If we stack the decision variables and Lagrange multipliers into a single vector, we can write the KKT conditions as a large block-tridiagonal linear system.
-This system obey a sparsity pattern, that can be exploited when solving it.
+If we stack the decision variables and Lagrange multipliers into a single vector, we can write the KKT conditions as a large linear system.
+This system is called the KKT-system.
 Here is an example showing the structure for $N=2$.
 
 \[
@@ -78,18 +92,18 @@ Here is an example showing the structure for $N=2$.
 \end{bmatrix}
 \]
 
-The system can be summarized in the following form, which is the standard system arising from optimal control problems.\\
+The system can be summarized in the following form, which is the standard system arising from optimal control problems.
 
 \[
 \begin{bmatrix} \mathcal{H}  & \mathcal{A} \T \\ \mathcal{A}  & 0 \end{bmatrix} \begin{bmatrix} y \\ \pi \end{bmatrix} = \begin{bmatrix} -h \\ -c \end{bmatrix}
 \]
 
-where the Hessians $\mathcal{H}$ is block-diagonal and $\mathcal{A}$ is block-bidiagonal. \\
-
+Looking closely at this system, we can see that the Hessians $\mathcal{H}$ is block-diagonal and $\mathcal{A}$ is block-bidiagonal.
+That means the KKT system obeys a certain sparsity pattern.
+This pattern can be exploited for fast and reliable solutions of the system, which is the core idea of taylored LQMPC solvers and is the main focus of this paper.
 There are in general three approaches to solve this system.
-The naive approach would be to feed this system as is to a dense cholesky solver.
-This works fine, since the hessian is $\mathcal{H}\in\Sp{}$.
-But this is is of order O(N3) ? and thus not relevant for practival applications.
+The first and naive approach would be to feed this system to a dense cholesky solver.
+Thsi works, but finding the solution is of order O(N3) ? and thus not relevant for practival applications.
 The other two approaches are worth considering in a bit more detail.
 
 \subsubsection{From KKT to Block-Cholesky}
