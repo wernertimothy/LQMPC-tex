@@ -17,11 +17,11 @@ With the states $x_k \in\Xset\subseteq\R{n_x}$ and inputs $u_k \in\Uset\subseteq
 The state and input dimensions are $n_x$ and $n_u$, respectively.
 The time horizon is $N \in \mathbb{N}_{>0}$ and the initial state is given as $\hat{x} \in \Xset$.
 The system dynamics are described by the matrices $A_k \in \R{n_x \times n_x}$, $B_k \in \R{n_x \times n_u}$ and the vector $b_k \in \R{n_x}$.
-The cost function is defined by the state weight matrix $Q_k \in \Sp{n_x}$, which is required to be symmetric positive-semi definite.
-The input weight matrix $R_k$, which is required to be symmetric and positive-definite on the control subspace $R_k - S_k\T Q_k^{-1} S_k \in \Spp{n_u \times n_u}$, and the cross-term weight matrix $S_k \in \R{n_u \times n_x}$.
+The cost function is defined by the state weight matrices $Q_k \in \Sp{n_x}$, which is required to be symmetric positive-semi definite.
+The input weight matrices $R_k$, which is required to be symmetric and positive-definite on the control subspace $R_k - S_k\T Q_k^{-1} S_k \in \Spp{n_u \times n_u}$, and the cross-term weight matrices $S_k \in \R{n_u \times n_x}$.
 The linear terms of the cost function are given by the vectors $q_k \in \R{n_x}$ and $r_k \in \R{n_u}$.
-There are a number of $n_{bx}$ box constraints on the states and $n_{bu}$ box constraints on the inputs, which are mapped by the selection matrices $J_k^{bx}$ and $J_k^{bu}$, together with the lower bounds $\underline{x}_k$, $\underline{u}_k$ and upper bounds $\bar{x}_k$, $\bar{u}_k$ respectively.  
-There are a number of $n_p$ polytopic constraints represemted by the matrices $C_k\in\R{n_x \times n_p}$, $D_k\in\R{n_u \times n_p}$ and the vector $d_k\in\R{n_p}$.
+There are a number of $n_{bx}$ box constraints on the states and $n_{bu}$ box constraints on the inputs, which are mapped by the selection matrices $J_k^{bx}\in\R{bx \times n_x}$ and $J_k^{bu}\in\R{bu \times n_x}$, together with the lower bounds $\underline{x}_k\in\R{bx}$, $\underline{u}_k\in\R{bu}$ and upper bounds $\bar{x}_k\in\R{bx}$, $\bar{u}_k\in\R{bu}$ respectively.  
+There are a number of $n_p$ polytopic constraints represented by the matrices $C_k\in\R{n_x \times n_p}$, $D_k\in\R{n_u \times n_p}$ and the vector $d_k\in\R{n_p}$.
 The integer set is denoted as $\Iset{a}{b} := \lbrace a, a+1, \dots b \rbrace$.
 
 \newpage
