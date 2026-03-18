@@ -48,7 +48,7 @@ The second stage is given by the second equality condition
 x_2 = A_1 x_1 + B_1 u_1 + b_1
 \]
 
-We can now subsditute the first stage into the second stage
+We can now subsditute the first stage into the second stage, eliminating $x_1$
 
 \begin{align*}
     x_2 &= A_1 x_1 + B_1 u_1 + b_1 \\
@@ -56,7 +56,8 @@ We can now subsditute the first stage into the second stage
     x_2 &= A_1 A_0 \hat{x} + A_1 B_0 u_0 + B_1 u_1 + A_1 b_0 + b_1
 \end{align*}
 
-This can be written in the closed form for any given stage $k=j$ as
+We can do this for each stage and thus eliminate all states $x_k$.
+The iteration can be written in the closed form for any given stage $k=j$ as
 
 \[
 x_j = \prod_{k=0}^{j-1} A_k \hat{x} + \sum_{k=0}^{j-1} \prod_{i=k+1}^{j-1} A_i B_k u_k + \sum_{k=0}^{j-1} \prod_{i=k+1}^{j-1} A_i b_k
@@ -281,77 +282,41 @@ The stationarity conditions with respect to $x_k$ can be rewritten as
 \pi_k = Q_k x_k + S_k u_k + q_k + A_k\T \pi_{k+1}
 \]
 
-This reveals that the dynamics of the costates $\pi_k$ propagate \textit{backward} in time. 
-The stationarity conditions with respect to $\pi_k$ reveal that the dynamics of the states $x_k$ propagate \textit{forward} in time.
+This reveals that the dynamics of the costates $\pi_k$ propagate \textit{backward} in time.
+It is bounded by the terminal condition $\pi_N = Q_N x_N + q_N$ at the end of the time horizon.
+The stationarity conditions with respect to $\pi_k$ reveal, that the dynamics of the states $x_k$ propagate \textit{forward} in time.
 
 \[
 x_{k+1} = A_k x_k + B_k u_k + c_k
 \]
 
+It is bounded by the initial condition $x_0 = \hat{x}$ at the begin of the time horizon.
 Both dynamics are coupled via the staionarity conditions for the inputs $u_k$
 
-\[ 
+\[
 R_k u_k + S_k\T x_k + r_k + B_k\T \pi_{k+1} = 0
 \]
 
+These equations form a coupled two-point boundary value problem (BVP).
+They are not an initial value problem, which can be solved by forward integration.
+Nor are they a final value problem, which can be solved by backward integration.
+Suppose you try to solve it forward in time.
+You start at stage $k=0$ with $x_0 = \hat{x}$.
+To compute $u_0^*$, you need $\pi_1$.
+But $\pi_1$ depends on $\pi_2$, which depends on $\pi_3$, all the way to $\pi_N$.
+And $\pi_N$ depends on $x_N$, which you don't know because you haven't simulated forward yet.
+Now suppose you try to solve it backwards.
+You start at stage $k=N$ with $\pi_N = Q_N x_N + q_N$.
+But again, you don't know $x_N$ without having simulated forward from $x_0$.
+The information flows in opposite directions, and they're coupled through the optimality condition for $u_k$.
+This is the essence of the two-point BVP.
+Data is specified at the boundaries of the time horizon, and you can't simply iterate through in one direction.
+The solution to this kind of problem comes from dynamic programming and Bellman's principle of optimality.
+Using the dynamic programming approach is a fundamental shift of perspective.
+Instead of searching for trajectories $x^*$, $u^*$ and $\pi^*$ that are characterized by the KKT conditions,
+you are searching for an optimal policy, i.e. a function $u_k^*(x_k)$ parametrized in the state $xk$.
+This will decouple the two-point BVP and allow for solving it in one backward (policy calculation) and one forward (trajectory rollout) iteration.
 
-
-\textbf{Dynamic Programming and the Principle of Optimality}
-
-Define the \textbf{optimal cost-to-go} (or value function) as the minimum cost 
-achievable from state $x_k$ at time $k$:
-\[
-V_k(x_k) = \min_{u_k, \dots, u_{N-1}} \left\{ \sum_{j=k}^{N-1} l_j(x_j, u_j) + l_N(x_N) 
-\;\middle|\; x_{j+1} = A_j x_j + B_j u_j + c_j \right\}
-\]
-
-Bellman's \textbf{principle of optimality} states that the value function satisfies 
-the recursive relationship:
-\[
-V_k(x_k) = \min_{u_k} \left\{ l_k(x_k, u_k) + V_{k+1}(A_k x_k + B_k u_k + c_k) \right\}
-\]
-with terminal condition $V_N(x_N) = l_N(x_N)$.
-
-The crucial insight for linear-quadratic problems is that if $V_{k+1}$ is quadratic 
-in the state, then $V_k$ is also quadratic. Since the terminal cost $l_N$ is quadratic, 
-by induction the value function is quadratic at all stages:
-\[
-V_k(x_k) = \frac{1}{2} x_k\T P_k x_k + p_k\T x_k + \rho_k
-\]
-where $P_k \in \R{n_x \times n_x}$ is symmetric positive semidefinite, 
-$p_k \in \R{n_x}$, and $\rho_k \in \R{}$ is a scalar (which we can ignore for 
-optimization purposes).
-
-\subsection{Derivation of the Riccati Recursion}
-
-Substituting the quadratic form into Bellman's equation and expanding:
-\begin{align*}
-V_k(x_k) = \min_{u_k} \Big\{ 
-&\frac{1}{2} x_k\T Q_k x_k + \frac{1}{2} u_k\T R_k u_k + x_k\T S_k u_k + q_k\T x_k + r_k\T u_k \\
-&+ \frac{1}{2}(A_k x_k + B_k u_k + c_k)\T P_{k+1} (A_k x_k + B_k u_k + c_k) \\
-&+ p_{k+1}\T (A_k x_k + B_k u_k + c_k) + \rho_{k+1} \Big\}
-\end{align*}
-
-The expression inside the minimization is quadratic in $u_k$. 
-Setting the gradient with respect to $u_k$ to zero:
-\[
-R_k u_k + S_k\T x_k + r_k + B_k\T P_{k+1}(A_k x_k + B_k u_k + c_k) + B_k\T p_{k+1} = 0
-\]
-
-Solving for $u_k$:
-\[
-u_k^* = -\underbrace{(R_k + B_k\T P_{k+1} B_k)^{-1}(S_k\T + B_k\T P_{k+1} A_k)}_{K_k} x_k 
-- \underbrace{(R_k + B_k\T P_{k+1} B_k)^{-1}(r_k + B_k\T P_{k+1} c_k + B_k\T p_{k+1})}_{k_k}
-\]
-
-This gives the optimal control as an \textbf{affine state feedback}:
-\[
-\boxed{u_k^* = -K_k x_k - k_k}
-\]
-
-Substituting $u_k^*$ back into the Bellman equation and matching coefficients 
-with $V_k(x_k) = \frac{1}{2} x_k\T P_k x_k + p_k\T x_k + \rho_k$ yields the 
-\textbf{Riccati recursion}.
-
+To understand dynamic programming, we will first look into Bellman's principle of optimality.
 
 \newpage
