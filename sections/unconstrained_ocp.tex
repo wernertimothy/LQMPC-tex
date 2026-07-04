@@ -18,7 +18,7 @@ The only constraints are the system dynamics and the initial state, but these ar
 They are thus not a constraint on the problem in the sense of restricting the solution space, rather an information to the problem about the underlying dynamics inherent to the system.
 Let's look at how we can compute a solution to this problem.
 
-\subsection{Solution via Equlaity Constraint Elimination}
+\subsection{Solution via Equality Constraint Elimination}
 
 The optimization problem is formulated such that the decision variables are the state and input pairs $(x_k, u_k)$ for all stages $k$ over the time horizon $N$.
 Consecutive stages $k$ and $k+1$ are coupled, via the system dynamics in the form of the equality constraints
@@ -29,7 +29,7 @@ x_{k+1} = A_k x_k + B_k u_k + b_k, \, \forall k\in\Iset{0}{N-1}
 
 This means that the state of a future stage $x_{k+1}$ is completely determined by the state of the current stage $x_k$ and the input of the current stage $u_k$.
 This iteration is bounded by the initial condition $x_0 = \hat{x}$ at the begin of the time horizon.
-This allows us to eliminate the states from the decision variables, leaving only the inputs at each stage as a decicion variable, parametrized in the initial condition $x_0$.
+This allows us to eliminate the states from the decision variables, leaving only the inputs at each stage as a decision variable, parametrized in the initial condition $x_0$.
 To see this, let's explicitly calculate the state trajectory, starting at the initial stage.
 
 \[
@@ -48,7 +48,7 @@ The second stage is given by the second equality condition
 x_2 = A_1 x_1 + B_1 u_1 + b_1
 \]
 
-We can now subsditute the first stage into the second stage, eliminating $x_1$
+We can now substitute the first stage into the second stage, eliminating $x_1$
 
 \begin{align*}
     x_2 &= A_1 x_1 + B_1 u_1 + b_1 \\
@@ -92,7 +92,7 @@ where $\mathbf{x} = [x_1^\top, \ldots, x_N^\top]^\top$, $\mathbf{u} = [u_0^\top,
     \end{bmatrix}
 \end{align*}
 
-This expression can be subsdituted back into the objective, leaving a condensed QP in only inputs $u_k$, parametrized in the initial condition $\hat{x}$.
+This expression can be substituted back into the objective, leaving a condensed QP in only inputs $u_k$, parametrized in the initial condition $\hat{x}$.
 Since the dimension of the problem has decreased from roughly $N*(n_x + n_u)$ to $N*n_u$, this process is known as \textit{condensing}.
 The benefit of a smaller dimension, comes at the cost of a dense hessian.
 The hessian after the condensing is given as
@@ -106,14 +106,14 @@ Since this paper focuses on the implementation of sparsity exploiting methods, t
 
 \subsection{Solution via Karush-Kuhn-Tucker}
 
-In terms of numeric optimization, the OCP above is an equlaity-constrained QP, which is convex in the decision variables $x_k$ and $u_k$.
-It is convex, because the cost function is quadratic in $x_k$ and $u_k$ with $Q_k \in \Sp{n_x}$ and $R_k - S_k\T Q_k^{-1} S_k \in \Spp{n_u \times n_u}$ per definition and the equlaity constraints are affine in $x_k$ and $u_k$.
-Since the problem is convex, it has a uniuque solution.
+In terms of numeric optimization, the OCP above is an equality-constrained QP, which is convex in the decision variables $x_k$ and $u_k$.
+It is convex, because the cost function is quadratic in $x_k$ and $u_k$ with $Q_k \in \Sp{n_x}$ and $R_k - S_k\T Q_k^{-1} S_k \in \Spp{n_u \times n_u}$ per definition and the equality constraints are affine in $x_k$ and $u_k$.
+Since the problem is convex, it has a unique solution.
 This solution is sufficiently characterized by the famous Karush-Kuhn-Tucker (KKT) conditions.
 To derive the KKT conditions, we first form the Lagrangian by introducing the Lagrange multipliers $\pi_k \in \R{n_x}$ for the dynamic constraints.
 
 \[
-\mathcal{L}(x_k, u_k, \pi_k) = \sum_{k=0}^{N-1} l_k(x_k, u_k) + l_N(x_N) + \sum_{k=0}^{N-1} \pi_{k+1}\T (A_k x_k + B_k u_k + c_k - x_{k+1})
+\mathcal{L}(x_k, u_k, \pi_k) = \sum_{k=0}^{N-1} l_k(x_k, u_k) + l_N(x_N) + \sum_{k=0}^{N-1} \pi_{k+1}\T (A_k x_k + B_k u_k + b_k - x_{k+1})
 \]
 
 With the stage cost
@@ -184,16 +184,16 @@ The system can be summarized in the following form, which is the standard system
 
 Looking closely at this system, we can see that the Hessians $\mathcal{H}$ is block-diagonal and $\mathcal{A}$ is block-bidiagonal.
 That means the KKT system obeys a certain sparsity pattern.
-This pattern can be exploited for fast and reliable solutions of the system, which is the core idea of taylored LQMPC solvers and is the main focus of this paper.
+This pattern can be exploited for fast and reliable solutions of the system, which is the core idea of tailored LQMPC solvers and is the main focus of this paper.
 There are in general three approaches to solve this system.
 The first and naive approach would be to feed this system to a dense cholesky solver.
-This works, but finding the solution is of order O(N3) ? and thus not relevant for practival applications.
+This works, but finding the solution is of order $\mathcal{O}(N^3 \cdot (n_x + n_u)^3)$, i.e. cubic in the horizon and thus not relevant for practical applications.
 The other two approaches are worth considering in a bit more detail.
 
 \subsubsection{From KKT to Block-Cholesky}
 
 The second approach is to notice the \textit{spacial} sparsity pattern of the hessian $\mathcal{H}$ and realize, the the solution to the system obayes a block-diagonal structure.
-To show this, let us attempt to solve this system by eliminating y from the KKT system, via the shur complement.
+To show this, let us attempt to solve this system by eliminating y from the KKT system, via the schur complement.
 We thus form
 
 \[
@@ -269,14 +269,14 @@ L_{kk} L_{kk}\T = Y_{kk} - L_{k,k-1} L_{k,k-1}\T
 L_{k+1,k} L_{kk}\T = Y_{k+1,k}
 \]
 
-Solve $L_Y z = \beta$ by forward subsditution, solve $L_Y\T \pi = z$ by backward substitution and finally, recover $y = H^{-1}(-h - C\T \pi)$.
+Solve $L_Y z = \beta$ by forward substitution, solve $L_Y\T \pi = z$ by backward substitution and finally, recover $y = H^{-1}(-h - C\T \pi)$.
 
 \subsubsection{From KKT to Dynamic Programming}
 
 The third approach is to notice, that the problem also has temporal structure.
-To be fair, the spacial structure we exploited above stems exactly from that temporal structure, but the interpretation takes on a differnt route.
+To be fair, the spacial structure we exploited above also stems from a temporal structure, but the interpretation takes on a different route.
 Let's take a closer look at the KKT conditions to see the temporal relationship.
-The stationarity conditions with respect to $x_k$ can be rewritten as
+The stationary conditions with respect to $x_k$ can be rewritten as
 
 \[
 \pi_k = Q_k x_k + S_k u_k + q_k + A_k\T \pi_{k+1}
@@ -284,14 +284,14 @@ The stationarity conditions with respect to $x_k$ can be rewritten as
 
 This reveals that the dynamics of the costates $\pi_k$ propagate \textit{backward} in time.
 It is bounded by the terminal condition $\pi_N = Q_N x_N + q_N$ at the end of the time horizon.
-The stationarity conditions with respect to $\pi_k$ reveal, that the dynamics of the states $x_k$ propagate \textit{forward} in time.
+The stationary conditions with respect to $\pi_k$ reveal, that the dynamics of the states $x_k$ propagate \textit{forward} in time.
 
 \[
-x_{k+1} = A_k x_k + B_k u_k + c_k
+x_{k+1} = A_k x_k + B_k u_k + b_k
 \]
 
 It is bounded by the initial condition $x_0 = \hat{x}$ at the begin of the time horizon.
-Both dynamics are coupled via the staionarity conditions for the inputs $u_k$
+Both dynamics are coupled via the stationary conditions for the inputs $u_k$
 
 \[
 R_k u_k + S_k\T x_k + r_k + B_k\T \pi_{k+1} = 0
@@ -315,8 +315,257 @@ The solution to this kind of problem comes from dynamic programming and Bellman'
 Using the dynamic programming approach is a fundamental shift of perspective.
 Instead of searching for trajectories $x^*$, $u^*$ and $\pi^*$ that are characterized by the KKT conditions,
 you are searching for an optimal policy, i.e. a function $u_k^*(x_k)$ parametrized in the state $xk$.
-This will decouple the two-point BVP and allow for solving it in one backward (policy calculation) and one forward (trajectory rollout) iteration.
+This will decouple the two-point BVP and allows for solving it in one backward (policy calculation) and one forward (trajectory rollout) iteration.
 
-To understand dynamic programming, we will first look into Bellman's principle of optimality.
+The key idea of dynamic programming is to reformulate the search for optimal \textit{trajectories} into a search for an optimal \textit{policy}, i.e.\ a function $u_k^*(x_k)$ that maps the current state to the optimal input.
+This decouples the two-point BVP and allows the solution to be computed in one backward pass (policy computation) followed by one forward pass (trajectory rollout).
+
+\paragraph{Bellman's Principle of Optimality.}
+Consider the total cost-to-go from stage $k$ to the terminal stage $N$
+
+\[
+J_k(x_k, u_k, \ldots, u_{N-1}) = \sum_{j=k}^{N-1} l_j(x_j, u_j) + l_N(x_N)
+\]
+
+subject to the dynamics $x_{j+1} = A_j x_j + B_j u_j + b_j$.
+The \textit{value function} $V_k(x_k)$ is defined as the minimum of this cost-to-go over all admissible input sequences
+
+\[
+V_k(x_k) = \min_{u_k, \ldots, u_{N-1}} J_k(x_k, u_k, \ldots, u_{N-1})
+\]
+
+Bellman's principle of optimality states:
+\textit{An optimal policy has the property that whatever the initial state and initial decision are, the remaining decisions must constitute an optimal policy with regard to the state resulting from the first decision.}
+Applied to our problem, this yields the recursive relationship known as the \textit{Bellman equation}
+
+\[
+V_k(x_k) = \min_{u_k} \left\lbrace l_k(x_k, u_k) + V_{k+1}(A_k x_k + B_k u_k + b_k) \right\rbrace
+\]
+
+with the terminal condition
+
+\[
+V_N(x_N) = l_N(x_N) = \frac{1}{2} x_N\T Q_N x_N + q_N\T x_N
+\]
+
+This equation is the foundation of the backward recursion.
+At each stage $k$, the minimization is only over the \textit{current} input $u_k$.
+All future costs are already captured in the value function $V_{k+1}$.
+This is why dynamic programming breaks the curse of the coupled two-point BVP:
+you never need to know $x_N$ explicitly.
+You only need to know $V_{k+1}$ as a function of the state, and the dynamics do the rest.
+
+\paragraph{Quadratic structure of the value function.}
+Since the terminal cost is quadratic in $x_N$, and each stage adds quadratic terms and propagates through affine dynamics, we expect the value function to remain quadratic at every stage.
+We thus make the ansatz
+
+\[
+V_k(x_k) = \frac{1}{2} x_k\T P_k x_k + p_k\T x_k + \eta_k
+\]
+
+with $P_k \in \Sp{n_x}$, $p_k \in \R{n_x}$ and $\eta_k \in \mathbb{R}$.
+This ansatz will be verified by showing that if it holds at stage $k+1$, it also holds at stage $k$.
+The terminal condition gives
+
+\[
+P_N = Q_N, \qquad p_N = q_N, \qquad \eta_N = 0
+\]
+
+\paragraph{Expanding the Bellman equation.}
+Substituting the ansatz for $V_{k+1}$ and the stage cost $l_k$ into the Bellman equation, we obtain the \textit{action-value function} (or Q-function)
+
+\[
+\mathcal{Q}_k(x_k, u_k) := l_k(x_k, u_k) + V_{k+1}(A_k x_k + B_k u_k + b_k)
+\]
+
+such that $V_k(x_k) = \min_{u_k} \mathcal{Q}_k(x_k, u_k)$.
+Let us expand this expression term by term.
+The stage cost contributes
+
+\[
+l_k(x_k, u_k) = \frac{1}{2} x_k\T Q_k x_k + \frac{1}{2} u_k\T R_k u_k + u_k\T S_k\T x_k + q_k\T x_k + r_k\T u_k
+\]
+
+For the value function term, denote $\xi := A_k x_k + B_k u_k + b_k$.
+Then
+
+\begin{align*}
+V_{k+1}(\xi) &= \frac{1}{2} \xi\T P_{k+1} \xi + p_{k+1}\T \xi + \eta_{k+1}
+\end{align*}
+
+Expanding $\xi\T P_{k+1} \xi$ gives
+
+\begin{align*}
+\xi\T P_{k+1} \xi &= (A_k x_k + B_k u_k + b_k)\T P_{k+1} (A_k x_k + B_k u_k + b_k) \\
+&= x_k\T A_k\T P_{k+1} A_k x_k + u_k\T B_k\T P_{k+1} B_k u_k + b_k\T P_{k+1} b_k \\
+&\quad + 2\, u_k\T B_k\T P_{k+1} A_k x_k + 2\, b_k\T P_{k+1} A_k x_k + 2\, b_k\T P_{k+1} B_k u_k
+\end{align*}
+
+and $p_{k+1}\T \xi = p_{k+1}\T A_k x_k + p_{k+1}\T B_k u_k + p_{k+1}\T b_k$.
+Now collect all terms in $\mathcal{Q}_k(x_k, u_k)$ according to their dependence on $x_k$ and $u_k$.
+The result is again a quadratic form in $(x_k, u_k)$
+
+\[
+\mathcal{Q}_k(x_k, u_k) = \frac{1}{2}
+\begin{bmatrix} x_k \\ u_k \\ 1 \end{bmatrix}\T
+\begin{bmatrix}
+    \tilde{Q}_k   & \tilde{S}_k  & \tilde{q}_k \\
+    \tilde{S}_k\T & \tilde{R}_k  & \tilde{r}_k \\
+    \tilde{q}_k\T & \tilde{r}_k\T & \tilde{\eta}_k
+\end{bmatrix}
+\begin{bmatrix} x_k \\ u_k \\ 1 \end{bmatrix}
+\]
+
+with the \textit{expanded stage cost} matrices
+
+\begin{align}
+\tilde{Q}_k &= Q_k + A_k\T P_{k+1} A_k \label{eq:Qtilde} \\
+\tilde{S}_k &= S_k + A_k\T P_{k+1} B_k \label{eq:Stilde} \\
+\tilde{R}_k &= R_k + B_k\T P_{k+1} B_k \label{eq:Rtilde} \\
+\tilde{q}_k &= q_k + A_k\T (P_{k+1} b_k + p_{k+1}) \label{eq:qtilde} \\
+\tilde{r}_k &= r_k + B_k\T (P_{k+1} b_k + p_{k+1}) \label{eq:rtilde}
+\end{align}
+
+Note the structure:
+these are the original stage cost matrices, augmented by the contribution of the future cost $V_{k+1}$ propagated backward through the dynamics.
+The matrix $\tilde{Q}_k$ is the state cost after absorbing the future cost seen through $A_k$, $\tilde{R}_k$ is the input cost after absorbing the future cost seen through $B_k$, and $\tilde{S}_k$ captures the cross-coupling.
+
+\paragraph{Minimization: the optimal policy.}
+Since $\tilde{R}_k = R_k + B_k\T P_{k+1} B_k$ inherits positive definiteness from $R_k \succ 0$ and $P_{k+1} \succeq 0$, the Q-function is strictly convex in $u_k$ and the minimum is unique.
+Setting $\nabla_{u_k} \mathcal{Q}_k = 0$ yields
+
+\[
+\tilde{R}_k u_k + \tilde{S}_k\T x_k + \tilde{r}_k = 0
+\]
+
+Solving for the optimal input gives
+
+\begin{equation} \label{eq:optimal_policy}
+u_k^* = - \tilde{R}_k^{-1} \left( \tilde{S}_k\T x_k + \tilde{r}_k \right) = K_k x_k + \kappa_k
+\end{equation}
+
+where we define the \textit{feedback gain} and \textit{feedforward term}
+
+\begin{align}
+K_k &:= -\tilde{R}_k^{-1} \tilde{S}_k\T \label{eq:gain} \\
+\kappa_k &:= -\tilde{R}_k^{-1} \tilde{r}_k \label{eq:feedforward}
+\end{align}
+
+This is the optimal policy we were looking for: an affine state-feedback law, parametrized at each stage by the gain $K_k$ and the offset $\kappa_k$.
+The gain $K_k$ is the \textit{LQR gain} when $q_k = 0$, $r_k = 0$ and $b_k = 0$.
+The feedforward term $\kappa_k$ accounts for the affine terms in the dynamics and the linear terms in the cost.
+
+\paragraph{The Riccati recursion.}
+Substituting the optimal policy (\ref{eq:optimal_policy}) back into the Q-function and collecting terms in $x_k$, we verify the quadratic ansatz and obtain the recursion for $P_k$ and $p_k$.
+The value function at stage $k$ is
+
+\[
+V_k(x_k) = \mathcal{Q}_k(x_k, u_k^*) = \frac{1}{2} x_k\T P_k x_k + p_k\T x_k + \eta_k
+\]
+
+To obtain $P_k$, collect all terms quadratic in $x_k$ from $\mathcal{Q}_k(x_k, K_k x_k + \kappa_k)$.
+The quadratic contribution from $u_k^* = K_k x_k + \kappa_k$ is
+
+\begin{equation*}
+\frac{1}{2} x_k\T \left( \tilde{Q}_k + K_k\T \tilde{S}_k\T + \tilde{S}_k K_k + K_k\T \tilde{R}_k K_k \right) x_k
+\end{equation*}
+
+Substituting $K_k = -\tilde{R}_k^{-1} \tilde{S}_k\T$ and simplifying (using $K_k\T \tilde{R}_k K_k = \tilde{S}_k \tilde{R}_k^{-1} \tilde{S}_k\T$ and $K_k\T \tilde{S}_k\T + \tilde{S}_k K_k = -2 \tilde{S}_k \tilde{R}_k^{-1} \tilde{S}_k\T$) yields
+
+\begin{equation} \label{eq:riccati_P}
+P_k = \tilde{Q}_k - \tilde{S}_k \tilde{R}_k^{-1} \tilde{S}_k\T
+\end{equation}
+
+This is the \textit{discrete-time Riccati equation}.
+Expanding the shorthand (\ref{eq:Qtilde})--(\ref{eq:Rtilde}), the fully explicit form reads
+
+\[
+P_k = Q_k + A_k\T P_{k+1} A_k - (S_k + A_k\T P_{k+1} B_k)(R_k + B_k\T P_{k+1} B_k)^{-1}(S_k + A_k\T P_{k+1} B_k)\T
+\]
+
+Similarly, collecting all terms linear in $x_k$ gives
+
+\begin{equation} \label{eq:riccati_p}
+p_k = \tilde{q}_k - \tilde{S}_k \tilde{R}_k^{-1} \tilde{r}_k
+\end{equation}
+
+and the constant term (which is not needed for computing the optimal trajectory, but completes the recursion) is
+
+\[
+\eta_k = \tilde{\eta}_k - \frac{1}{2}\tilde{r}_k\T \tilde{R}_k^{-1} \tilde{r}_k + \eta_{k+1}
+\]
+
+Equations (\ref{eq:riccati_P}) and (\ref{eq:riccati_p}) together with the definitions (\ref{eq:Qtilde})--(\ref{eq:rtilde}) and the terminal conditions $P_N = Q_N$, $p_N = q_N$ form the \textit{backward Riccati recursion}.
+Note the Schur complement structure: $P_k$ is obtained from the expanded stage Hessian by eliminating the input block via the Schur complement with respect to $\tilde{R}_k$.
+This is not a coincidence.
+It is the matrix-level manifestation of the minimization over $u_k$.
+
+\paragraph{Connection to the costates.}
+The value function gradient with respect to the state is
+
+\[
+\nabla_{x_k} V_k(x_k) = P_k x_k + p_k
+\]
+
+We now show that this equals the costate $\pi_k$ from the KKT conditions.
+Recall the costate dynamics
+
+\[
+\pi_k = Q_k x_k + S_k u_k + q_k + A_k\T \pi_{k+1}
+\]
+
+If we define $\pi_k := P_k x_k + p_k$ and substitute $u_k^* = K_k x_k + \kappa_k$ and $\pi_{k+1} = P_{k+1} x_{k+1} + p_{k+1}$ with $x_{k+1} = A_k x_k + B_k u_k^* + b_k$, the right-hand side becomes
+
+\begin{align*}
+&\phantom{=}\; Q_k x_k + S_k (K_k x_k + \kappa_k) + q_k + A_k\T \left[ P_{k+1}(A_k x_k + B_k (K_k x_k + \kappa_k) + b_k) + p_{k+1} \right] \\
+&= \left[ Q_k + S_k K_k + A_k\T P_{k+1}(A_k + B_k K_k) \right] x_k \\
+&\quad + \left[ S_k \kappa_k + q_k + A_k\T P_{k+1}(B_k \kappa_k + b_k) + A_k\T p_{k+1} \right]
+\end{align*}
+
+Using the definitions of $\tilde{Q}_k$, $\tilde{S}_k$ and $K_k = -\tilde{R}_k^{-1}\tilde{S}_k\T$, the coefficient of $x_k$ simplifies to
+
+\begin{align*}
+Q_k + S_k K_k + A_k\T P_{k+1}(A_k + B_k K_k)
+&= \tilde{Q}_k + \tilde{S}_k K_k \\
+&= \tilde{Q}_k - \tilde{S}_k \tilde{R}_k^{-1} \tilde{S}_k\T \\
+&= P_k
+\end{align*}
+
+and the constant part simplifies to $p_k$ by an analogous calculation.
+Thus $\pi_k = P_k x_k + p_k = \nabla_{x_k} V_k(x_k)$, which confirms the classical result:
+\textit{the costate is the gradient of the value function}.
+This is the link between the KKT perspective and the dynamic programming perspective.
+The Riccati recursion computes the value function backward in time, which implicitly solves the backward costate dynamics.
+The optimal policy $u_k^* = K_k x_k + \kappa_k$ then provides the missing coupling that decouples the two-point BVP into two sequential sweeps.
+
+\paragraph{The complete algorithm.}
+Combining the backward and forward passes, the solution of the unconstrained LQ-OCP via the Riccati recursion proceeds as follows.
+
+\textit{Backward pass} ($k = N-1, N-2, \ldots, 0$):
+Given $P_N = Q_N$, $p_N = q_N$, compute for each stage
+
+\begin{align*}
+\tilde{Q}_k &= Q_k + A_k\T P_{k+1} A_k \\
+\tilde{S}_k &= S_k + A_k\T P_{k+1} B_k \\
+\tilde{R}_k &= R_k + B_k\T P_{k+1} B_k \\
+\tilde{q}_k &= q_k + A_k\T (P_{k+1} b_k + p_{k+1}) \\
+\tilde{r}_k &= r_k + B_k\T (P_{k+1} b_k + p_{k+1}) \\[4pt]
+K_k &= -\tilde{R}_k^{-1} \tilde{S}_k\T \\
+\kappa_k &= -\tilde{R}_k^{-1} \tilde{r}_k \\[4pt]
+P_k &= \tilde{Q}_k - \tilde{S}_k \tilde{R}_k^{-1} \tilde{S}_k\T \\
+p_k &= \tilde{q}_k - \tilde{S}_k \tilde{R}_k^{-1} \tilde{r}_k
+\end{align*}
+
+\textit{Forward pass} ($k = 0, 1, \ldots, N-1$):
+Given $x_0 = \hat{x}$, roll out the trajectory
+
+\begin{align*}
+u_k^* &= K_k x_k + \kappa_k \\
+x_{k+1} &= A_k x_k + B_k u_k^* + b_k
+\end{align*}
+
+If the costates are needed (e.g.\ for constraint handling in an interior point method), they are recovered as $\pi_k = P_k x_k + p_k$.
+The computational cost of this procedure is $\mathcal{O}(N \cdot (n_x + n_u)^3)$, i.e.\ \textit{linear} in the horizon length $N$ and cubic in the state and input dimensions.
+The cubic cost per stage is dominated by the inversion of $\tilde{R}_k \in \Spp{n_u}$ (or equivalently, its Cholesky factorization) and the Schur complement products.
 
 \newpage
