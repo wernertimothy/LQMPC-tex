@@ -186,7 +186,7 @@ Looking closely at this system, we can see that the Hessians $\mathcal{H}$ is bl
 That means the KKT system obeys a certain sparsity pattern.
 This pattern can be exploited for fast and reliable solutions of the system, which is the core idea of tailored LQMPC solvers and is the main focus of this paper.
 There are in general three approaches to solve this system.
-The first and naive approach would be to feed this system to a dense cholesky solver.
+The first and naive approach would be to feed this system to a dense symmetric-indefinite factorization solver.
 This works, but finding the solution is of order $\mathcal{O}(N^3 \cdot (n_x + n_u)^3)$, i.e. cubic in the horizon and thus not relevant for practical applications.
 The other two approaches are worth considering in a bit more detail.
 
@@ -538,34 +538,320 @@ This is the link between the KKT perspective and the dynamic programming perspec
 The Riccati recursion computes the value function backward in time, which implicitly solves the backward costate dynamics.
 The optimal policy $u_k^* = K_k x_k + \kappa_k$ then provides the missing coupling that decouples the two-point BVP into two sequential sweeps.
 
-\paragraph{The complete algorithm.}
-Combining the backward and forward passes, the solution of the unconstrained LQ-OCP via the Riccati recursion proceeds as follows.
+\subsection{The Riccati Recursion}
 
-\textit{Backward pass} ($k = N-1, N-2, \ldots, 0$):
-Given $P_N = Q_N$, $p_N = q_N$, compute for each stage
+The dynamic programming argument of the previous section established that the
+optimal cost-to-go is quadratic in the state,
+\[
+V_k(x_k) = \tfrac{1}{2} x_k\T P_k x_k + p_k\T x_k + \eta_k ,
+\]
+and that each backward step minimizes the sum of the stage cost and the
+downstream cost-to-go over the current input. Writing this stage-wise
+minimization out in closed form yields the \textit{Riccati recursion}, which
+solves the unconstrained LQ-OCP in two sweeps over the horizon: a
+\textit{backward pass} that propagates the value function and precomputes the
+affine feedback law, followed by a \textit{forward pass} that rolls out the
+optimal trajectory.
 
+The backward pass is most transparent through the stage \textit{action-value}
+(or $\mathcal{Q}$-) function
+\[
+\mathcal{Q}_k(x_k, u_k) := l_k(x_k, u_k) + V_{k+1}(A_k x_k + B_k u_k + b_k) .
+\]
+Substituting the value-function ansatz and collecting terms, $\mathcal{Q}_k$ is
+quadratic with Hessian blocks and gradient and yields the tilde quantities below, which are simply the stage cost matrices augmented by
+the propagated value function $(P_{k+1}, p_{k+1})$.
+
+\paragraph{Backward pass ($k = N-1, N-2, \ldots, 0$).}
+Initialize at the terminal stage with $P_N = Q_N$, $p_N = q_N$.
+For each stage, first assemble the $\mathcal{Q}$-function blocks
 \begin{align*}
 \tilde{Q}_k &= Q_k + A_k\T P_{k+1} A_k \\
-\tilde{S}_k &= S_k + A_k\T P_{k+1} B_k \\
+\tilde{S}_k &= S_k + B_k\T P_{k+1} A_k \\
 \tilde{R}_k &= R_k + B_k\T P_{k+1} B_k \\
 \tilde{q}_k &= q_k + A_k\T (P_{k+1} b_k + p_{k+1}) \\
-\tilde{r}_k &= r_k + B_k\T (P_{k+1} b_k + p_{k+1}) \\[4pt]
-K_k &= -\tilde{R}_k^{-1} \tilde{S}_k\T \\
-\kappa_k &= -\tilde{R}_k^{-1} \tilde{r}_k \\[4pt]
-P_k &= \tilde{Q}_k - \tilde{S}_k \tilde{R}_k^{-1} \tilde{S}_k\T \\
-p_k &= \tilde{q}_k - \tilde{S}_k \tilde{R}_k^{-1} \tilde{r}_k
+\tilde{r}_k &= r_k + B_k\T (P_{k+1} b_k + p_{k+1}) ,
 \end{align*}
+then minimize $\mathcal{Q}_k$ over $u_k$ to obtain the affine feedback law
+\begin{align*}
+K_k &= -\tilde{R}_k^{-1} \tilde{S}_k \\
+\kappa_k &= -\tilde{R}_k^{-1} \tilde{r}_k ,
+\end{align*}
+and finally update the value function by substituting the minimizer
+$u_k^* = K_k x_k + \kappa_k$ back into $\mathcal{Q}_k$ (a Schur complement with
+respect to the $\tilde{R}_k$ block)
+\begin{align*}
+P_k &= \tilde{Q}_k - \tilde{S}_k\T \tilde{R}_k^{-1} \tilde{S}_k = \tilde{Q}_k + \tilde{S}_k\T K_k \\
+p_k &= \tilde{q}_k - \tilde{S}_k\T \tilde{R}_k^{-1} \tilde{r}_k = \tilde{q}_k + \tilde{S}_k\T \kappa_k .
+\end{align*}
+The right-hand forms reuse $K_k$ and $\kappa_k$, so only a single factorization
+of $\tilde{R}_k$ is needed per stage. Observe that each tilde quantity inherits
+the shape of its un-tilde counterpart, $\tilde{Q}_k \in \Sp{n_x}$,
+$\tilde{R}_k \in \Spp{n_u}$ and $\tilde{S}_k \in \R{n_u \times n_x}$; in
+particular $\tilde{S}_k$ carries the same orientation as the cross-weight $S_k$,
+so the gain $K_k \in \R{n_u \times n_x}$ maps states to inputs directly.
 
-\textit{Forward pass} ($k = 0, 1, \ldots, N-1$):
-Given $x_0 = \hat{x}$, roll out the trajectory
-
+\paragraph{Forward pass ($k = 0, 1, \ldots, N-1$).}
+Starting from $x_0 = \hat{x}$, apply the precomputed feedback law and roll the
+dynamics forward
 \begin{align*}
 u_k^* &= K_k x_k + \kappa_k \\
-x_{k+1} &= A_k x_k + B_k u_k^* + b_k
+x_{k+1} &= A_k x_k + B_k u_k^* + b_k .
 \end{align*}
 
-If the costates are needed (e.g.\ for constraint handling in an interior point method), they are recovered as $\pi_k = P_k x_k + p_k$.
-The computational cost of this procedure is $\mathcal{O}(N \cdot (n_x + n_u)^3)$, i.e.\ \textit{linear} in the horizon length $N$ and cubic in the state and input dimensions.
-The cubic cost per stage is dominated by the inversion of $\tilde{R}_k \in \Spp{n_u}$ (or equivalently, its Cholesky factorization) and the Schur complement products.
+If the costates are required (e.g.\ for constraint handling in an interior-point
+method), they follow from the value-function gradient established earlier,
+\[
+\pi_k = \nabla_{x_k} V_k(x_k) = P_k x_k + p_k .
+\]
+
+\textit{Well-posedness and cost.}
+The recursion is well defined as long as $\tilde{R}_k \in \Spp{n_u}$ at every
+stage, which is guaranteed by the convexity assumptions on the OCP
+($Q_k \in \Sp{n_x}$, positive definiteness of $R_k$ on the control subspace, and
+$P_{k+1} \in \Sp{n_x}$ propagated from the terminal cost).
+Per stage the work is dominated by propagating $P_{k+1}$ through the dynamics ---
+the dense products $A_k\T P_{k+1} A_k$, $B_k\T P_{k+1} A_k$, $B_k\T P_{k+1} B_k$
+--- together with the factorization of $\tilde{R}_k$ and the Schur-complement
+product $\tilde{S}_k\T \tilde{R}_k^{-1} \tilde{S}_k$. Each is
+$\mathcal{O}\!\left((n_x + n_u)^3\right)$, so the whole recursion costs
+\[
+\mathcal{O}\!\left(N (n_x + n_u)^3\right),
+\]
+i.e.\ \textit{linear} in the horizon length $N$ and cubic in the stage
+dimension. This is the decisive structural gain over a dense factorization of
+the full KKT system, which is $\mathcal{O}\!\left(N^3 (n_x + n_u)^3\right)$.
+
+\paragraph{Practical Implementation.}
+The recursion above propagates the cost-to-go matrix $P_k$ directly. The first and
+most important refinement is to propagate a Cholesky factor $\Lambda_k$ instead,
+with $P_k = \Lambda_k \Lambda_k\T$. The motivation is purely numerical: since
+$\kappa(P_k) = \kappa(\Lambda_k)^2$, every operation carried out on the factor works
+at the square root of the condition number of $P_k$ and hence loses only half as
+many digits to rounding. The derivation rests on the observation that one backward
+step is entirely a \emph{Gram-matrix} operation. Writing the stage Hessian as
+$H_k = \left[\begin{smallmatrix} R_k & S_k \\ S_k\T & Q_k \end{smallmatrix}\right]$
+and the input-major dynamics as $G_k = \begin{bmatrix} B_k & A_k \end{bmatrix}$, the
+augmented Hessian is the congruence
+\[
+\tilde{\mathcal H}_k = H_k + G_k\T P_{k+1} G_k = H_k + W\T W ,
+\qquad W := \Lambda_{k+1}\T G_k ,
+\]
+so substituting $P_{k+1} = \Lambda_{k+1}\Lambda_{k+1}\T$ replaces the propagation
+$A\T P A$ by the formation of $W\T W$ --- the matrix $P_{k+1}$ is never assembled,
+only its factor is read through the dynamics. It remains to extract $\Lambda_k$.
+Ordering the Cholesky factorization of $\tilde{\mathcal H}_k$ in $[u;x]$ form gives a
+block lower-triangular factor whose trailing block is precisely the factor of the
+Schur complement,
+\[
+\tilde{\mathcal H}_k =
+\begin{bmatrix} L_R & 0 \\ M & \Lambda_k \end{bmatrix}
+\begin{bmatrix} L_R\T & M\T \\ 0 & \Lambda_k\T \end{bmatrix} ,
+\qquad
+\Lambda_k \Lambda_k\T = \tilde Q_k - M M\T
+                     = \tilde Q_k - \tilde S_k\T \tilde R_k^{-1} \tilde S_k = P_k .
+\]
+A single factorization thus realizes both the congruence and the Schur complement
+that define a Riccati step, and the recursion maps factor to factor,
+$\Lambda_{k+1} \mapsto \Lambda_k$, without $P$ ever appearing --- the discrete-time
+LQ dual of square-root covariance (Kalman) filtering. The linear terms ride along as
+a plain vector $p_k$, updated by a handful of matrix--vector products.
+Algorithm~\ref{alg:sqrt-riccati} states the resulting recursion.
+
+\begin{algorithm}[t]
+\caption{Square-root Riccati recursion --- Cholesky form}
+\label{alg:sqrt-riccati}
+\begin{algorithmic}[1]
+\Require dynamics $A_k, B_k, b_k$; cost $Q_k, R_k, S_k, q_k, r_k$, $k \in \Iset{0}{N-1}$;
+         terminal $Q_N, q_N$; initial state $\hat{x}$
+\Ensure feedback $K_k, \kappa_k$; trajectory $x_k, u_k$; (optional) costates $\pi_k$
+\Statex \textbf{Backward pass}
+        \Comment{propagate the factor $\Lambda_k$ of the cost-to-go $P_k = \Lambda_k \Lambda_k\T$}
+\State $\Lambda_N \gets \operatorname{chol}(Q_N)$,\quad $p_N \gets q_N$
+\For{$k = N-1, \dots, 0$}
+    \State $W \gets \Lambda_{k+1}\T \begin{bmatrix} B_k & A_k \end{bmatrix}$
+           \Comment{\texttt{trmm},\; $W \in \R{n_x \times (n_u+n_x)}$}
+    \State $w \gets \Lambda_{k+1}\!\left(\Lambda_{k+1}\T b_k\right) + p_{k+1}$
+           \Comment{$w = P_{k+1} b_k + p_{k+1}$}
+    \State $\tilde{\mathcal H} \gets
+           \begin{bmatrix} R_k & S_k \\ S_k\T & Q_k \end{bmatrix} + W\T W$
+           \Comment{\texttt{syrk}, lower triangle}
+    \State $\begin{bmatrix} \tilde r \\ \tilde q \end{bmatrix} \gets
+           \begin{bmatrix} r_k \\ q_k \end{bmatrix}
+           + \begin{bmatrix} B_k\T \\ A_k\T \end{bmatrix} w$
+           \Comment{\texttt{gemv}}
+    \State factor $\tilde{\mathcal H} =
+           \begin{bmatrix} L_R & 0 \\ M & \Lambda_k \end{bmatrix}
+           \begin{bmatrix} L_R\T & M\T \\ 0 & \Lambda_k\T \end{bmatrix}$
+           \Comment{\texttt{potrf}, $[u;x]$ order}
+    \State $\ell \gets L_R^{-1}\tilde r$
+           \Comment{\texttt{trsv}}
+    \State $K_k \gets -L_R^{-\top} M\T$,\quad
+           $\kappa_k \gets -L_R^{-\top}\ell$
+           \Comment{\texttt{trsm}, \texttt{trsv}}
+    \State $p_k \gets \tilde q - M\ell$
+           \Comment{\texttt{gemv}}
+\EndFor
+\Statex \textbf{Forward pass}
+\State $x_0 \gets \hat{x}$
+\For{$k = 0, \dots, N-1$}
+    \State $u_k \gets K_k x_k + \kappa_k$
+    \State $x_{k+1} \gets A_k x_k + B_k u_k + b_k$
+    \State \textit{(optional)}\; $\pi_k \gets \Lambda_k\!\left(\Lambda_k\T x_k\right) + p_k$
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+The form is fast because its inner loop leans on exactly the two kernels that vendor
+and hand-tuned libraries optimize best: one symmetric rank-$n_x$ update
+(\texttt{syrk}) to build $W\T W$, and one Cholesky (\texttt{potrf}) to factor the
+result. Both are BLAS-3, both touch a single triangle, and for the small stage
+dimension $n = n_u + n_x$ of embedded MPC both are cache-resident, so the recursion
+is compute-bound on the FPU rather than memory-bound.
+
+\paragraph{When Robustification Pays.}
+The fast form makes one concession. Forming the normal matrix $W\T W$ explicitly
+squares the conditioning of $W$: the matrix that \texttt{potrf} finally sees has
+condition number $\kappa(W)^2$, so precisely at the point where the propagated factor
+is squared back into a Gram matrix, half of the digits bought by carrying $\Lambda$
+are conceded. Whether this matters is entirely a question of regime, and here the
+speed--robustness frontier appears. Through the well-conditioned interior of the
+interior-point method --- the large majority of iterations --- the concession is
+invisible: $\tilde{\mathcal H}_k \succ 0$ comfortably and a few lost digits change
+nothing. But an IPM deliberately drives its iterates toward the constraint boundary,
+and as the slacks $s_i \to 0$ the barrier weights $S^{-1}\Lambda$ diverge like
+$1/s_i$; the effective stage Hessian $\Phi_k = H_k + J_k\T S^{-1}\Lambda\, J_k$ that
+the recursion actually factors grows ill-conditioned exactly in the late iterations
+where the Newton direction must nonetheless remain accurate. There, the residual
+squaring $\kappa(W)^2$ is the difference between a usable step and a numerically
+singular one. Robustification is therefore not a global improvement --- it costs
+arithmetic and a stronger premise on \emph{every} stage --- but a targeted one,
+worthwhile only where conditioning is genuinely at risk. The two forms sit on a
+Pareto frontier: neither dominates.
+
+\paragraph{The Orthogonal Array Form.}
+The array variant removes the last squaring. Factoring the stage Hessian once,
+$H_k = L_{H_k} L_{H_k}\T$, and triangularizing the stacked pre-array with an
+orthogonal $U$,
+\[
+U \begin{bmatrix} L_{H_k}\T \\ W \end{bmatrix}
+  = \begin{bmatrix} \mathcal L_k\T \\ 0 \end{bmatrix} ,
+\]
+preserves the Gram matrix, $\mathcal L_k \mathcal L_k\T = L_{H_k} L_{H_k}\T + W\T W
+= \tilde{\mathcal H}_k$ (since $U\T U = I$), and yields $\Lambda_k$ as the trailing
+block of $\mathcal L_k$ --- but now no normal matrix is ever formed, so the step runs
+at $\kappa(\Lambda)$ from end to end. Concretely $U$ is a product of $n_u + n_x$
+Householder reflectors, each of height $1 + n_x$: the top block $L_{H_k}\T$ is already
+triangular, so beneath each pivot sit only the $n_x$ rows of $W$. The price is a
+strictly stronger premise --- the array factors the \emph{raw} $H_k$ and hence
+requires $H_k \succ 0$, whereas the Cholesky form needs only the \emph{augmented}
+$\tilde{\mathcal H}_k \succ 0$ (the $A\T P A$ term can lift a semidefinite $Q_k$ into
+definiteness). Inside an interior-point method this distinction is moot: the barrier
+renders $\Phi_k \succ 0$ at every interior iterate.
+
+The linear terms $q_k, r_k, b_k$ can be threaded through the \emph{same} orthogonal
+sweep by homogenizing the stage with the constant coordinate $1$. Appending $b_k$ to
+the dynamics, $\bar G_k = \begin{bmatrix} B_k & A_k & b_k \end{bmatrix}$, and the
+gradient $[r_k; q_k]$ to the Hessian turns the linear part of the value function into
+one extra column of the pre-array. The subtlety is \emph{what} to propagate: the
+naive homogeneous value matrix
+\[
+\bar P_k = \begin{bmatrix} P_k & p_k \\ p_k\T & 2\theta_k \end{bmatrix}
+\]
+is indefinite whenever the optimal cost-to-go
+$V_k^\star = \theta_k - \tfrac{1}{2} p_k\T P_k^{-1} p_k$ is negative --- the generic
+case once linear cost terms are present --- so it admits no real square root. This is
+also why the fold is native to the array form and not to the Cholesky form: the
+orthogonal sweep only triangularizes the \emph{genuine} columns and carries the
+affine column along passively, never taking the square root of the homogeneous
+corner, whereas a \texttt{potrf} on $\bar P_k$ would fail on exactly that pivot. The
+remedy is to carry the linear term in \emph{factored coordinates}
+$\nu_k := \Lambda_k^{-1} p_k$, the strictly-lower block of the homogeneous Cholesky
+factor
+\[
+\begin{bmatrix} \Lambda_k & 0 \\ \nu_k\T & \gamma_k \end{bmatrix} ,
+\qquad \gamma_k = \sqrt{2 V_k^\star} ,
+\]
+which is always real; the possibly-imaginary corner $\gamma_k$ is the cost constant
+and is simply dropped, as it never enters the control law. With $\nu_k$ carried, the
+appended column of the triangularized array emerges as $[\mu; \nu_k; \gamma_k]$ with
+$\mu = L_R^{-1} \tilde r_k$, so the feedforward $\kappa_k = -L_R^{-\top} \mu$ and the
+rolled $\nu_k$ are read off \emph{alongside} the gain --- the separate propagation of
+$w$, $\tilde q_k$, $\tilde r_k$ and $p_k$ all collapse into the sweep. The costate,
+if required, follows from $p_k = \Lambda_k \nu_k$ as
+$\pi_k = \Lambda_k\!\left(\Lambda_k\T x_k + \nu_k\right)$.
+
+\begin{algorithm}[t]
+\caption{Square-root Riccati recursion --- array form with affine fold}
+\label{alg:sqrt-riccati-array}
+\begin{algorithmic}[1]
+\Require dynamics $A_k, B_k, b_k$; cost $Q_k, R_k, S_k, q_k, r_k$, $k \in \Iset{0}{N-1}$;
+         terminal $Q_N, q_N$; initial state $\hat{x}$
+\Ensure feedback $K_k, \kappa_k$; trajectory $x_k, u_k$; (optional) costates $\pi_k$
+\Statex \textbf{Backward pass}
+        \Comment{carry $\Lambda_k$ ($P_k = \Lambda_k \Lambda_k\T$) and $\nu_k := \Lambda_k^{-1} p_k$}
+\State $\Lambda_N \gets \operatorname{chol}(Q_N)$,\quad
+       $\nu_N \gets \Lambda_N^{-1} q_N$
+       \Comment{\texttt{potrf}, \texttt{trsv}}
+\For{$k = N-1, \dots, 0$}
+    \State $L_H \gets \operatorname{chol}\!\begin{bmatrix} R_k & S_k \\ S_k\T & Q_k \end{bmatrix}$,\quad
+           $h \gets L_H^{-1}\begin{bmatrix} r_k \\ q_k \end{bmatrix}$
+           \Comment{\texttt{potrf} ($H_k \succ 0$), \texttt{trsv}}
+    \State $W \gets \Lambda_{k+1}\T \begin{bmatrix} B_k & A_k \end{bmatrix}$,\quad
+           $w_b \gets \Lambda_{k+1}\T b_k + \nu_{k+1}$
+           \Comment{\texttt{trmm};\ \texttt{trmv}+\texttt{axpy}}
+    \State assemble the pre-array \Comment{genuine cols $1{:}n$, affine col $n{+}1$; $n = n_u{+}n_x$}
+    \Statex \qquad
+           $\bar{\mathcal A} \gets
+           \begin{bmatrix} L_H\T & h \\[2pt] W & w_b \end{bmatrix}
+           \in \R{(n + n_x) \times (n + 1)}$
+    \Statex \quad\emph{Householder triangularization of the genuine columns}
+            ($\mathcal W$: the $n_x$ rows of the $W$-block):
+    \For{$j = 1, \dots, n$}
+        \State $v \gets \bar{\mathcal A}[\,\{j\} \cup \mathcal W,\; j\,]$,\quad
+               $\alpha \gets -\operatorname{sign}(v_1)\,\lVert v \rVert$,\quad
+               $v_1 \gets v_1 - \alpha$
+        \State $\bar{\mathcal A}[\,\{j\} \cup \mathcal W,\; j{:}\,n{+}1\,] \gets
+               \bigl(I - \tfrac{2}{v\T v}\, v v\T\bigr)\,
+               \bar{\mathcal A}[\,\{j\} \cup \mathcal W,\; j{:}\,n{+}1\,]$
+               \Comment{reflect trailing cols}
+    \EndFor
+    \State read the upper factor from rows $1{:}n$:\quad
+           $\begin{bmatrix} L_R\T & M\T & \mu \\ 0 & \Lambda_k\T & \nu_k \end{bmatrix}
+           \gets \bar{\mathcal A}[\,1{:}n,\; 1{:}\,n{+}1\,]$
+    \State $K_k \gets -L_R^{-\top} M\T$,\quad
+           $\kappa_k \gets -L_R^{-\top} \mu$
+           \Comment{\texttt{trsm}, \texttt{trsv} on $L_R\T$}
+\EndFor
+\Statex \textbf{Forward pass}
+\State $x_0 \gets \hat{x}$
+\For{$k = 0, \dots, N-1$}
+    \State $u_k \gets K_k x_k + \kappa_k$
+    \State $x_{k+1} \gets A_k x_k + B_k u_k + b_k$
+    \State \textit{(optional)}\; $\pi_k \gets \Lambda_k\!\left(\Lambda_k\T x_k + \nu_k\right)$
+           \Comment{$p_k = \Lambda_k \nu_k$}
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+The cost of removing that last squaring is a constant factor, not an asymptotic
+penalty. The orthogonal sweep replaces the \texttt{syrk}, and --- because the
+pre-array requires $L_{H_k}\T$ on top --- the stage Hessian must be Cholesky-factored
+on its own rather than folded in by a cheap addition. Both factorizations remain
+$\tfrac13 n^3$ to leading order; exploiting the triangular top block, the reflector
+sweep is $\mathcal O(n_x n^2)$, so the overhead sits near $1.3$--$1.4\times$ and is
+strikingly stable in the ratio $n_x/n_u$, since the shared factorization and
+\texttt{trmm} dominate. On a scalar FPU the more consequential cost is structural:
+the inherently sequential reflector chain forgoes the BLAS-3 regularity and SIMD
+friendliness of \texttt{syrk}\,+\,\texttt{potrf}.
+
+Since both forms produce identical $(K_k, \kappa_k, \Lambda_k)$ and differ only in the
+factorization kernel, the natural synthesis is to choose per stage and per iteration:
+attempt the cheap Cholesky form, monitor a condition proxy on its result --- the
+smallest pivot ratio $\min_i (L_R)_{ii}^2 / \lVert \tilde R_k \rVert$, or an
+$\mathcal O(n^2)$ \texttt{pocon}-style estimate, cheaper than the factorization it
+guards --- and fall back to the array kernel only on the stages and iterations where
+the proxy trips. The fast path then carries the vast majority of well-conditioned
+factorizations while the array form insures the ill-conditioned tail.
 
 \newpage
