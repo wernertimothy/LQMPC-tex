@@ -10,22 +10,31 @@
 % math related
 \newcommand{\f}[1]{\mathbf{#1}}             % for vector and matrices
 \newcommand{\T}{^\top}                      % transpose
+\newcommand{\cond}{\operatorname{cond}}      % condition number
 
 % vectors and matrices
 \newcommand{\vxuone}[1]{
     \begin{bmatrix}
-        x_{#1} \\
         u_{#1} \\
+        x_{#1} \\
         1
     \end{bmatrix}
 }
 \newcommand{\Hcoststacked}[1]{
     \begin{bmatrix}
-        Q_{#1}   & S_{#1}  & q_{#1} \\
-        S_{#1}\T & R_{#1}  & r_{#1} \\
-        q_{#1}\T & r_{#1}\T & 0
+        R_{#1}   & S_{#1}  & r_{#1} \\
+        S_{#1}\T & Q_{#1}  & q_{#1} \\
+        r_{#1}\T & q_{#1}\T & 0
     \end{bmatrix}
 }
+
+% renamed symbols (single point of change)
+\newcommand{\Hcond}{\mathcal{H}_{c}}          % condensed Hessian (equality elimination)
+\newcommand{\LP}[1]{L_{P,#1}}                 % Cholesky factor of the cost-to-go, P_k = L_{P,k} L_{P,k}^T
+\newcommand{\LY}[1]{{L^{Y}_{#1}}}              % blocks of the Cholesky factor L_Y of the normal matrix Y
+\newcommand{\vY}{v^{Y}}                       % forward-substitution vector, L_Y v^Y = beta
+\newcommand{\Jg}[1]{J^{g}_{#1}}                % polytopic constraint rows [D_k C_k]
+\newcommand{\Hbar}[1]{\bar{H}_{#1}}            % IPM-augmented stage Hessian H_k + G_k^T Sigma_k G_k
 
 % colors
 \definecolor{darkblue}{rgb}{0.0,0.0,0.3}
@@ -33,7 +42,7 @@
 \newcommand{\myLinkColor}{darkblue}
 
 % title
-\newcommand{\myTitle}{Linear Quadraric Model Predictive Control}
+\newcommand{\myTitle}{Linear Quadratic Model Predictive Control}
 \newcommand{\mySubtitle}{Notes from Theory to Praxis}
 \newcommand{\Author}{Timothy Werner}
 \renewcommand{\maketitle}[1]{
