@@ -94,7 +94,7 @@ where $\mathbf{x} = [x_1; \dots; x_N]$, $\mathbf{u} = [u_0; \dots; u_{N-1}]$, $\
 \end{align*}
 
 This expression can be substituted back into the objective, leaving a condensed QP in the inputs $u_k$ only, parametrized by the initial condition $\hat{x}$.
-Since the dimension of the problem has decreased from roughly $N(n_x + n_u)$ to $N n_u$, this process is known as \textit{condensing}.
+Since the dimension of the problem has decreased from roughly $N(n_x + n_u)$ to $N n_u$, this process is known as \textit{condensing}~\cite{frison2013fast}.
 The benefit of a smaller dimension comes at the cost of a dense Hessian.
 To state the Hessian, we stack the stage weights as $\f{R} := \operatorname{blkdiag}(R_0, \dots, R_{N-1})$ and $\f{Q} := \operatorname{blkdiag}(Q_1, \dots, Q_N)$, matching the stacked states $x_1,\dots,x_N$.
 The initial state $x_0 = \hat{x}$ is fixed and thus contributes to the parametric part of the problem only.
@@ -109,6 +109,7 @@ With this, the Hessian after the condensing is given as
 
 For the special case of no cross-terms, $S_k = 0$, this reduces to $\f{R} + \Gamma\T \f{Q} \Gamma$.
 Since this paper focuses on sparsity-exploiting methods, we do not pursue condensing further.
+For an in-depth discussion and implementation of this method, have a look at qpOASES~\cite{ferreau2014qpoases}.
 
 \subsection{Solution via Karush--Kuhn--Tucker}
 
@@ -204,7 +205,7 @@ with the primal vector $y = [u_0; x_0; \dots; u_{N-1}; x_{N-1}; x_N]$, the multi
 
 Looking closely at this system, we can see that the Hessian $\mathcal{H}$ is block-diagonal with $\mathcal{H} = \operatorname{blkdiag}(H_0, \dots, H_{N-1}, Q_N)$ and $\mathcal{A}$ is block-bidiagonal.
 That means the KKT system obeys a certain sparsity pattern.
-This pattern can be exploited for fast and reliable solutions of the system, which is the core idea of tailored LQMPC solvers and is the main focus of this paper.
+This pattern can be exploited for fast and reliable solutions of the system, which is the core idea of tailored LQMPC solvers~\cite{wang2009fast,frison2020hpipm} and is the main focus of this paper.
 There are in general three approaches to solve this system.
 The first and naive approach would be to feed this system to a dense symmetric-indefinite factorization solver.
 This works, but finding the solution is of order $\mathcal{O}\!\left(N^3 (n_x + n_u)^3\right)$, i.e.\ cubic in the horizon, which is impractical for all but short horizons.
@@ -226,7 +227,7 @@ and substitute into $\mathcal{A}y = -c$, from which we get
 \mathcal{A} \mathcal{H}^{-1} \mathcal{A}\T \pi = c - \mathcal{A} \mathcal{H}^{-1} h
 \]
 
-We now define $Y := \mathcal{A} \mathcal{H}^{-1} \mathcal{A}\T$ and $\beta := c - \mathcal{A} \mathcal{H}^{-1} h$, to arrive at the system in the so-called normal equations form.
+We now define $Y := \mathcal{A} \mathcal{H}^{-1} \mathcal{A}\T$ and $\beta := c - \mathcal{A} \mathcal{H}^{-1} h$, to arrive at the system in the so-called normal equations form~\cite{wang2009fast}.
 
 \[
     Y \pi = \beta
@@ -295,6 +296,7 @@ This fact motivates a blockwise factorization with the following recursion for $
 \]
 
 Finally, solve $L_Y \vY = \beta$ for the intermediate vector $\vY$ by forward substitution, solve $L_Y\T \pi = \vY$ by backward substitution, and recover $y = \mathcal{H}^{-1}(-h - \mathcal{A}\T \pi)$.
+For an in-depth discussion and implementation of this method, have a look at FORCES~\cite{domahidi2012efficient}.
 
 \subsubsection{From KKT to Dynamic Programming}
 \label{sec:dp}
@@ -323,7 +325,7 @@ Both dynamics are coupled via the stationarity conditions for the inputs $u_k$
 R_k u_k + S_k x_k + r_k + B_k\T \pi_{k+1} = 0
 \]
 
-These equations form a coupled two-point boundary value problem (BVP).
+These equations form a coupled two-point boundary value problem (BVP)~\cite{bryson1975applied}.
 They are not an initial value problem, which can be solved by forward integration.
 Nor are they a final value problem, which can be solved by backward integration.
 Consider solving it forward in time.
@@ -337,7 +339,7 @@ The information flows in opposite directions, and the two directions are coupled
 This is the essence of the two-point BVP.
 Data is specified at both boundaries of the time horizon, so the equations cannot simply be iterated in one direction.
 The block-Cholesky approach above resolves this coupling by factoring the whole system at once.
-Dynamic programming, based on Bellman's principle of optimality, resolves it differently, and it is a fundamental shift of perspective.
+Dynamic programming, based on Bellman's principle of optimality~\cite{bellman1957dynamic}, resolves it differently, and it is a fundamental shift of perspective.
 Instead of searching for trajectories $x^*$, $u^*$ and $\pi^*$ that are characterized by the KKT conditions,
 one searches for an optimal policy, i.e.\ a function $u_k^*(x_k)$ of the state $x_k$.
 This decouples the two-point BVP and allows solving it in one backward pass (policy computation) and one forward pass (trajectory rollout).
@@ -357,8 +359,8 @@ V_k(x_k) = \min_{u_k, \ldots, u_{N-1}} J_k(x_k, u_k, \ldots, u_{N-1})
 \]
 
 Bellman's principle of optimality states:
-\textit{An optimal policy has the property that whatever the initial state and initial decision are, the remaining decisions must constitute an optimal policy with regard to the state resulting from the first decision.}
-Applied to our problem, this yields the recursive relationship known as the \textit{Bellman equation}
+\textit{An optimal policy has the property that whatever the initial state and initial decision are, the remaining decisions must constitute an optimal policy with regard to the state resulting from the first decision.}~\cite[p.~83]{bellman1957dynamic}
+Applied to our problem, this yields the recursive relationship known as the \textit{Bellman equation}~\cite{bertsekas1995dynamic}
 
 \[
 V_k(x_k) = \min_{u_k} \left\lbrace l_k(u_k, x_k) + V_{k+1}(A_k x_k + B_k u_k + b_k) \right\rbrace
@@ -378,7 +380,7 @@ $x_N$ never needs to be known explicitly.
 Only $V_{k+1}$ is needed as a function of the state, and the dynamics do the rest.
 
 \paragraph{Quadratic structure of the value function.}
-Since the terminal cost is quadratic in $x_N$, and each stage adds quadratic terms and propagates through affine dynamics, we expect the value function to remain quadratic at every stage.
+Since the terminal cost is quadratic in $x_N$, and each stage adds quadratic terms and propagates through affine dynamics, we expect the value function to remain quadratic at every stage~\cite{bertsekas1995dynamic}.
 We thus make the ansatz
 
 \[
@@ -394,7 +396,7 @@ P_N = Q_N, \qquad p_N = q_N, \qquad \eta_N = 0
 \]
 
 \paragraph{Expanding the Bellman equation.}
-The expression minimized in the Bellman equation is the \textit{action-value function} (or $\mathcal{Q}$-function)
+The expression minimized in the Bellman equation is the \textit{action-value function} (or $\mathcal{Q}$-function)~\cite{watkins1992q}
 
 \[
 \mathcal{Q}_k(u_k, x_k) := l_k(u_k, x_k) + V_{k+1}(A_k x_k + B_k u_k + b_k)
@@ -478,7 +480,7 @@ K_k &:= -\tilde{R}_k^{-1} \tilde{S}_k \label{eq:gain} \\
 \end{align}
 
 This is the optimal policy we were looking for: an affine state-feedback law, parametrized at each stage by the gain $K_k$ and the offset $\kappa_k$.
-The gain $K_k$ depends only on the dynamics, the quadratic weights and $P_{k+1}$, not on the linear terms or the offsets $b_k$: it is the time-varying \textit{LQR gain}.
+The gain $K_k$ depends only on the dynamics, the quadratic weights and $P_{k+1}$, not on the linear terms or the offsets $b_k$: it is the time-varying \textit{LQR gain}~\cite{kalman1960contributions}.
 The feedforward term $\kappa_k$ collects the affine terms in the dynamics and the linear terms in the cost, and it vanishes when $q_k$, $r_k$, $b_k$ and $q_N$ are all zero.
 
 \paragraph{The Riccati recursion.}
@@ -503,7 +505,7 @@ P_k = \tilde{Q}_k - \tilde{S}_k\T \tilde{R}_k^{-1} \tilde{S}_k
 \end{equation}
 
 This is the \textit{Riccati difference equation}.
-For time-invariant data, its stationary solution satisfies the discrete algebraic Riccati equation (DARE) of the infinite-horizon LQR problem.
+For time-invariant data, its stationary solution satisfies the discrete algebraic Riccati equation (DARE) of the infinite-horizon LQR problem~\cite{bertsekas1995dynamic}.
 Expanding the shorthand \eqref{eq:Qtilde}--\eqref{eq:Rtilde}, the fully explicit form reads
 
 \[
@@ -561,7 +563,7 @@ Q_k + S_k\T K_k + A_k\T P_{k+1}(A_k + B_k K_k)
 
 and the constant part simplifies to $p_k = \tilde{q}_k + \tilde{S}_k\T \kappa_k$ by an analogous calculation.
 The remaining KKT conditions hold as well: the terminal condition $\pi_N = Q_N x_N + q_N$ follows from $P_N = Q_N$ and $p_N = q_N$, and with $\pi_{k+1} = P_{k+1} x_{k+1} + p_{k+1}$ the input condition $R_k u_k + S_k x_k + r_k + B_k\T \pi_{k+1} = 0$ becomes $\tilde{R}_k u_k + \tilde{S}_k x_k + \tilde{r}_k = 0$, which the optimal policy satisfies by construction.
-Thus $\pi_k = P_k x_k + p_k = \nabla_{x_k} V_k(x_k)$, which confirms the classical result:
+Thus $\pi_k = P_k x_k + p_k = \nabla_{x_k} V_k(x_k)$, which confirms the classical result~\cite{bryson1975applied}:
 \textit{the costate is the gradient of the value function}.
 This is the link between the KKT perspective and the dynamic programming perspective.
 The Riccati recursion computes the value function backward in time, which implicitly solves the backward costate dynamics.
@@ -577,7 +579,7 @@ V_k(x_k) = \tfrac{1}{2} x_k\T P_k x_k + p_k\T x_k + \eta_k ,
 \]
 and that each backward step minimizes the stage cost plus the downstream
 cost-to-go over the current input. Writing this minimization out in closed form
-yields the \textit{Riccati recursion}, which solves the unconstrained LQ-OCP in
+yields the \textit{Riccati recursion}~\cite{frison2020hpipm,frison2015algorithms}, which solves the unconstrained LQ-OCP in
 two passes over the horizon: a \textit{backward pass} that propagates the value
 function and computes the affine feedback law, followed by a \textit{forward pass}
 that rolls out the optimal trajectory.
@@ -628,7 +630,7 @@ If the costates are required, they follow from the value-function gradient,
 
 \paragraph{Classical implementation.}
 Algorithm~\ref{alg:classical-riccati} implements the recursion by propagating the
-cost-to-go matrix $P_k$ itself. Each stage requires a single Cholesky factorization
+cost-to-go matrix $P_k$ itself~\cite{frison2013efficient}. Each stage requires a single Cholesky factorization
 $\tilde{R}_k = L_R L_R\T$, from which $M = \tilde{S}_k\T L_R^{-\top}$ yields both the
 Schur complement $P_k = \tilde{Q}_k - M M\T$ and the feedback law.
 The recursion is well defined as long as $\tilde{R}_k \in \Spp{n_u}$ at every
@@ -638,7 +640,7 @@ $\tilde{H}_k \succeq H_k \succ 0$, so $\tilde{R}_k \succ 0$ and $P_k \succ 0$ at
 every stage.
 These assumptions are sufficient, not necessary. Existence and uniqueness only
 require $R_k\succ0$, $H_k\succeq0$ and $Q_N\succeq0$, under which the classical
-recursion remains well defined with $P_k\succeq0$. These are the requirements
+recursion remains well defined with $P_k\succeq0$~\cite{frison2015algorithms}. These are the requirements
 stated in Algorithm~\ref{alg:classical-riccati}.
 Per stage, the work is dominated by propagating $P_{k+1}$ through the dynamics,
 i.e.\ the dense products $A_k\T P_{k+1} A_k$, $B_k\T P_{k+1} A_k$, $B_k\T P_{k+1} B_k$,
@@ -650,7 +652,7 @@ $\mathcal{O}\!\left((n_x + n_u)^3\right)$, so the whole recursion costs
 \]
 i.e.\ \textit{linear} in the horizon length $N$ and cubic in the stage
 dimension, compared to $\mathcal{O}\!\left(N^3 (n_x + n_u)^3\right)$ for a dense
-factorization of the full KKT system.
+factorization of the full KKT system~\cite{frison2013efficient}.
 
 \begin{algorithm}[t]
 \caption{Classical Riccati recursion}
@@ -703,7 +705,7 @@ factorization of the full KKT system.
 \paragraph{Square-root Riccati recursion.}
 Algorithm~\ref{alg:classical-riccati} assembles $P_{k+1}$ explicitly and propagates
 it through the dynamics at every stage. Propagating a Cholesky factor $\LP{k}$
-instead, with $P_k = \LP{k} \LP{k}\T$, is numerically preferable: since
+instead~\cite{frison2013efficient}, with $P_k = \LP{k} \LP{k}\T$, is numerically preferable~\cite{kaminski1971discrete}: since
 $\cond(P_k) = \cond(\LP{k})^2$, every operation carried out on the factor works
 at the square root of the condition number of $P_k$ and hence loses only half as
 many digits to rounding.
@@ -732,11 +734,11 @@ Schur complement,
 A single factorization thus realizes both the congruence and the Schur complement
 that define a Riccati step, and the recursion maps factor to factor,
 $\LP{k+1} \mapsto \LP{k}$, without $P$ ever appearing. This is the discrete-time
-LQ dual of square-root covariance (Kalman) filtering. The linear terms ride along as
+LQ dual of square-root covariance (Kalman) filtering~\cite{kalman1960new,kaminski1971discrete}. The linear terms ride along as
 a plain vector $p_k$, updated by a few matrix--vector products.
 
 The factorization above is also where the input-major ordering $[u;x]$ of the
-stage variables pays off. A Cholesky factorization eliminates the variables in
+stage variables pays off~\cite{frison2020hpipm}. A Cholesky factorization eliminates the variables in
 index order, so the trailing block of a lower-triangular factor is always the
 factor of the Schur complement of the leading block. One Riccati step is precisely
 the Schur complement of $\tilde{H}_k$ with respect to $\tilde{R}_k$, i.e.\ the
@@ -822,7 +824,7 @@ Algorithm~\ref{alg:sqrt-riccati} states the resulting recursion.
 \end{algorithm}
 
 The recursion is fast because its flops are concentrated in a few dense level-3
-kernels on small triangular and symmetric operands: one triangular product
+kernels on small triangular and symmetric operands~\cite{frison2018blasfeo}: one triangular product
 (\texttt{trmm}) to form $W$, one symmetric rank-$n_x$ update (\texttt{syrk}) to
 build $W\T W$, one Cholesky factorization (\texttt{potrf}) of the result, and a
 triangular solve with multiple right-hand sides (\texttt{trsm}) for the gain.
@@ -830,7 +832,7 @@ The asymptotic cost is the same as for the classical form,
 $\mathcal{O}\!\left(N (n_x + n_u)^3\right)$, but the leading-order flop count is
 lower: propagating $P_{k+1}$ through the dynamics takes a triangular product
 (\texttt{trmm}) instead of a symmetric one (\texttt{symm}), which saves more than
-the additional factorization of the trailing block costs.
+the additional factorization of the trailing block costs~\cite{frison2013efficient}.
 
 
 \newpage
