@@ -1,0 +1,79 @@
+\section{Examples}
+
+\subsection{Integrator Chain}
+\label{sec:integrator_chain}
+
+The integrator chain is one of the simplest dynamical systems.
+It consists of $n$ integrators in series, driven by a scalar input $u$ at the end of the chain.
+In continuous time, it is described by the $n$-th order differential equation
+\[
+\frac{d^n}{dt^n} s(t) = u(t)
+\]
+with the scalar signal $s(t) \in \mathbb{R}$ and the input $u(t) \in \mathbb{R}$.
+For $n = 1$ this is a single integrator, for $n = 2$ it is the double integrator, hence the $n$th-order integrator.
+
+Collecting the signal and its first $n-1$ derivatives in the state
+\[
+x = \begin{bmatrix} s \\ \dot{s} \\ \vdots \\ s^{(n-1)} \end{bmatrix} \in \R{n},
+\]
+yields the linear time-invariant state space system representation
+\[
+\dot{x}(t) = 
+\begin{bmatrix}
+    0 & 1 &        &  \\
+      & 0 & 1      &  \\
+      &   & \ddots & 1 \\
+      &   &        & 0
+\end{bmatrix} x(t) + 
+\begin{bmatrix} 0 \\ \vdots \\ 0 \\ 1 \end{bmatrix} u(t)
+\]
+
+\paragraph{Exact discretization.}
+To obtain a discrete-time model with sampling time $T_s > 0$, we assume that the input is held constant between sampling instants (zero-order hold), i.e.\ $u(t) = u_k$ for $t \in [k T_s, (k+1) T_s)$.
+As derived in the introduction, the discrete-time system $x_{k+1} = A_d x_k + B_d u_k$ then follows from \eqref{eq:zoh} with
+\[
+A_d = \Phi(T_s) = e^{A_c T_s},
+\qquad
+B_d = \int_0^{T_s} e^{A_c \sigma} \, d\sigma \, B_c.
+\]
+Numerically, both matrices are obtained from the augmented matrix exponential \eqref{eq:zoh_expm}, but here they can also be computed in closed form.
+The matrix exponential is defined by the infinite series $e^{A_c t} = \sum_{i=0}^{\infty} \frac{t^i}{i!} A_c^i$.
+For the integrator chain, however, $A_c$ is nilpotent, i.e.\ $A_c^i = 0$ for all $i \geq n$.
+The series therefore terminates after $n$ terms, and the matrix exponential is given by the finite sum
+\[
+e^{A_c t} = \sum_{i=0}^{n-1} \frac{t^i}{i!} A_c^i.
+\]
+Evaluating the finite sum at $t = T_s$ directly gives the discrete-time system matrix
+\begin{equation} \label{eq:integrator_A}
+A_d = \sum_{i=0}^{n-1} \frac{T_s^i}{i!} A_c^i.
+\end{equation}
+For the input matrix, we substitute the finite sum into the integral and integrate term by term, using $\int_0^{T_s} \frac{\sigma^i}{i!} \, d\sigma = \frac{T_s^{i+1}}{(i+1)!}$
+\begin{equation} \label{eq:integrator_B}
+B_d = \sum_{i=0}^{n-1} \left( \int_0^{T_s} \frac{\sigma^i}{i!} \, d\sigma \right) A_c^i B_c = \sum_{i=0}^{n-1} \frac{T_s^{i+1}}{(i+1)!} A_c^i B_c.
+\end{equation}
+Since $A_c^i$ has ones only on its $i$-th superdiagonal, the entries of $A_d$ are $(A_d)_{jl} = \frac{T_s^{\,l-j}}{(l-j)!}$ for $l \geq j$ and zero otherwise.
+Furthermore, $A_c^i B_c = e_{n-i}$, such that the $j$-th entry of $B_d$ is $(B_d)_j = \frac{T_s^{\,n-j+1}}{(n-j+1)!}$.
+Written out, the discrete-time matrices read
+\[
+A_d = \begin{bmatrix}
+    1 & T_s & \frac{T_s^2}{2} & \cdots & \frac{T_s^{n-1}}{(n-1)!} \\
+      & 1 & T_s & \ddots & \vdots \\
+      & & \ddots & \ddots & \frac{T_s^2}{2} \\
+      & & & 1 & T_s \\
+      & & & & 1
+\end{bmatrix},
+\qquad
+B_d = \begin{bmatrix}
+    \frac{T_s^n}{n!} \\
+    \frac{T_s^{n-1}}{(n-1)!} \\
+    \vdots \\
+    \frac{T_s^2}{2} \\
+    T_s
+\end{bmatrix}.
+\]
+For the double integrator ($n = 2$), this reduces to discrete-time LTI system
+\[
+x_{k+1} = \begin{bmatrix} 1 & T_s \\ 0 & 1 \end{bmatrix} x_k + \begin{bmatrix} \frac{T_s^2}{2} \\ T_s \end{bmatrix} u_k.
+\]
+
+\newpage

@@ -1,3 +1,235 @@
-\section{Introduction}
+\section{Introduction and Preliminaries}
+
+It is sometimes said that model predictive control (MPC) is the proportional--integral--derivative (PID) control of the 21st century.
+While it is true that MPC has gained a lot of attention in the last decades, we still believe that PID control remains the workhorse of the 21st century, simply because it is so easy to implement.
+Implementing an MPC is not.
+This paper aims to demystify the implementation of MPC and to shed light on its many wonderful mysteries.
+
+\subsection{Linear Systems}
+
+Most physical systems can be described in continuous time by an ordinary differential equation
+\[
+\dot{x}(t) = f\big(x(t), u(t)\big),
+\]
+with the state $x(t) \in \R{n_x}$ and the input $u(t) \in \R{n_u}$.
+For ease of notation, the time dependence of the states $x$ and inputs $u$ will be dropped from here on.
+
+\paragraph{LTI systems.}
+A linear time-invariant (LTI) system is described by
+\[
+\dot{x} = A_c x + B_c u,
+\]
+with constant matrices $A_c \in \R{n_x \times n_x}$ and $B_c \in \R{n_x \times n_u}$, where the subscript $c$ denotes continuous time.
+Its discrete-time counterpart, derived in the next subsection, reads
+\[
+x_{k+1} = A_d x_k + B_d u_k,
+\]
+with constant matrices $A_d \in \R{n_x \times n_x}$ and $B_d \in \R{n_x \times n_u}$, where the subscript $d$ denotes discrete time.
+Linear systems obey the superposition principle.
+LTI systems additionally have a closed-form solution, and their properties such as stability, controllability and observability can be checked with simple matrix computations.
+
+\paragraph{LTV systems.}
+In a linear time-varying (LTV) system, the matrices are allowed to change over time
+\[
+\dot{x} = A_c(t) x + B_c(t) u + b_c(t),
+\]
+where we additionally allow an affine term $b_c(t) \in \R{n_x}$.
+Strictly speaking, such a system is affine, but we follow common usage and still call it LTV.
+In discrete time, this becomes
+\[
+x_{k+1} = A_k x_k + B_k u_k + b_k,
+\]
+with stage-dependent $A_k$, $B_k$ and $b_k$.
+
+\paragraph{Linearization along a trajectory.}
+The most important source of LTV systems is the linearization of a nonlinear system around a nominal trajectory.
+Let $(x^\circ, u^\circ)$ be such a nominal trajectory, for instance a reference trajectory.
+A first-order Taylor expansion of the vector field $f$ around this trajectory yields
+\[
+\dot{x} \approx f\big(x^\circ, u^\circ\big) + \left. \frac{\partial f}{\partial x} \right|_{(x^\circ(t), u^\circ(t))} \big(x - x^\circ\big) + \left. \frac{\partial f}{\partial u} \right|_{(x^\circ(t), u^\circ(t))} \big(u - u^\circ\big),
+\]
+with the Jacobians
+\[
+A_c(t) = \left. \frac{\partial f}{\partial x} \right|_{(x^\circ(t), u^\circ(t))},
+\qquad
+B_c(t) = \left. \frac{\partial f}{\partial u} \right|_{(x^\circ(t), u^\circ(t))}.
+\]
+Since the Jacobians are evaluated at different points along the trajectory, they vary with time, and the linearized model is an LTV system, unless $(x^\circ, u^\circ)$ is an equilibrium, in which case the linearization is LTI.
+Collecting the terms independent of $x$ and $u$ gives the affine form from above with the offset
+\[
+b_c(t) = f\big(x^\circ, u^\circ\big) - A_c(t) x^\circ - B_c(t) u^\circ.
+\]
+Alternatively, the model can be written in deviation coordinates $\Delta x = x - x^\circ$, $\Delta u = u - u^\circ$, which gives
+\[
+\Delta \dot{x} \approx A_c(t)\, \Delta x + B_c(t)\, \Delta u + \big( f(x^\circ, u^\circ) - \dot{x}^\circ \big).
+\]
+If the nominal trajectory satisfies the nonlinear dynamics, i.e.\ $\dot{x}^\circ = f(x^\circ, u^\circ)$, the bracketed offset vanishes.
+Otherwise it measures the mismatch of the nominal trajectory.
+In either representation, the linear model is only a good approximation close to the nominal trajectory.
+Repeatedly linearizing around the latest solution and solving the resulting linear-quadratic optimal control problem (OCP) is the basis of sequential quadratic programming (SQP) and real-time iteration schemes for nonlinear MPC~\cite{diehl2005real}, which is why efficient solvers for LTV problems are relevant far beyond linear plants.
+
+\subsection{Discretization}
+
+Controllers are implemented or simulated on digital hardware, where inputs are computed and applied at discrete sampling instants.
+We therefore require a discrete-time model that maps the state and input at stage $k$ to the state at stage $k+1$.
+We will start from a given continuous-time LTI system and arrive at a discrete-time equivalent, which, for inputs held constant between samples, reproduces the sampled continuous-time state exactly.
+
+\paragraph{The transition matrix.}
+Without any inputs the dynamics reduce to the autonomous system
+\[
+  \dot{x} = A_c x, \qquad x(0)=x_0,
+\]
+with the well-known solution
+\[
+  x(t) = \Phi(t)x_0 ,
+\]
+where
+\[
+  \Phi(t) = \sum_{i=0}^{\infty} A_c^i \frac{t^i}{i!} = e^{A_c t}
+\]
+is the so-called transition matrix.
+Its $i$-th column is the free response to the initial state $e_i$, and by linearity this gives the solution above for any $x_0$.
+Differentiating the series term by term shows $\dot{\Phi}(t) = A_c \Phi(t)$.
+Furthermore, it has the important properties $\Phi(0)=I$, $\Phi(t)\Phi(\tau)=\Phi(t+\tau)$ and $\Phi^{-1}(t)=\Phi(-t)$.
+
+\paragraph{Solution via variation of constants.}
+With inputs, the state no longer follows the free response.
+We describe it in the moving basis of free solutions and let the coordinates vary over time,
+\[
+  x(t) = \Phi(t)\, c(t), \qquad c(0) = x_0.
+\]
+Differentiating and inserting $\dot{\Phi} = A_c \Phi$ gives
+\[
+  \dot{x} = \dot{\Phi}\, c + \Phi\, \dot{c} = A_c \Phi c + \Phi \dot{c} = A_c x + \Phi\, \dot{c} .
+\]
+Comparing with the true dynamics $\dot{x} = A_c x + B_c u$ yields
+\[
+  \Phi\,\dot{c} = B_c u
+\]
+and finally
+\[
+    \dot{c}(t) = \Phi^{-1}(t) B_c\, u(t) = e^{-A_ct} B_c\, u(t) .
+\]
+Integrating both sides using the fundamental theorem of calculus yields
+\[
+    c(t) - c(0) = \int_0^{t} \Phi(-\tau) B_c\, u(\tau)\, d\tau .
+\]
+Using the inverse transformation $c(t)=\Phi^{-1}(t)x(t)=\Phi(-t)x(t)$ and $c(0) = x_0$, we arrive at
+\[
+    \Phi(-t)x(t) = x_0 + \int_0^{t} \Phi(-\tau) B_c\, u(\tau)\, d\tau .
+\]
+Multiplying by $\Phi(t)$ and using $\Phi(t)\Phi(-\tau) = \Phi(t-\tau)$, the general solution is given by
+\[
+    x(t) = \Phi(t)x_0 + \int_0^{t} \Phi(t-\tau) B_c\, u(\tau)\, d\tau .
+\]
+Since the system is time-invariant, the same holds for any initial time $t_0$, i.e.\ $x(t) = \Phi(t-t_0)x(t_0) + \int_{t_0}^{t} \Phi(t-\tau) B_c\, u(\tau)\, d\tau$.
+
+\paragraph{Zero-order hold.}
+Let $T_s > 0$ be the sampling time, $t_k := k T_s$ the sampling instants and $x_k := x(t_k)$.
+The input is computed only at the sampling instants and held constant in between, i.e.
+\[
+    u(t) = u_k \quad \text{for } t\in[t_k, t_{k+1}) .
+\]
+We can therefore compute the exact transition from the state $x_k$ to $x_{k+1}$ as
+\[
+    x(t_{k+1}) = \Phi(t_{k+1}-t_k)x(t_k) + \int_{t_k}^{t_{k+1}} \Phi(t_{k+1}-\tau) d\tau\, B_c\, u_k,
+\]
+and using $\sigma = t_{k+1} - \tau$, with $d\sigma = -d\tau$, where the limits swap from $\tau = t_k, t_{k+1}$ to $\sigma = T_s, 0$ and cancel the sign,
+\begin{equation} \label{eq:zoh}
+    x_{k+1} = \Phi(T_s)x_k + \int_{0}^{T_s} \Phi(\sigma) d\sigma\, B_c\, u_k .
+\end{equation}
+Thus we arrive at the zero-order hold (ZOH) discretization, which is exact at the sampling instants $t_k$,
+\[
+    x_{k+1} = A_dx_k + B_du_k ,
+    \qquad
+    A_d := \Phi(T_s) = e^{A_c T_s},
+    \qquad
+    B_d := \int_0^{T_s} \Phi(\sigma)\, d\sigma\, B_c .
+\]
+Here, $A_d$ is the transition matrix over one sampling period, so $A_d x_k$ is the free response starting from $x_k$.
+$B_d$ is the convolution of the impulse response $\Phi(\sigma)B_c$ with a unit-height pulse of width $T_s$, evaluated at the end of the pulse, so $B_d u_k$ is the forced response (from zero initial state) to the input $u_k$.
+
+\paragraph{Computation via Van Loan.}
+If $A_c$ is invertible, the discrete-time input matrix can be computed as $B_d = A_c^{-1} \big( e^{A_c T_s} - I \big) B_c$, but this formula fails for singular $A_c$, which is common in practice.
+Any system containing an integrator has a singular $A_c$.
+A simple trick~\cite{van1978computing} avoids evaluating the integral explicitly.
+Under the ZOH assumption, the input is constant on each sampling interval, i.e.\ $\dot{u}(t) = 0$ for $t \in (t_k, t_{k+1})$.
+We can therefore treat the input as an additional state and augment the state to $\tilde{x} = [x; u]$, which follows the autonomous LTI dynamics
+\[
+\dot{\tilde{x}} = M \tilde{x},
+\qquad
+M :=
+\begin{bmatrix}
+    A_c & B_c \\
+    0   & 0
+\end{bmatrix}.
+\]
+Since the augmented system is autonomous, its solution over one interval is simply $\tilde{x}(t_{k+1}) = e^{M T_s} \tilde{x}(t_k)$.
+To see how $A_d$ and $B_d$ appear in this matrix exponential, note that the powers of $M$ have the block structure
+\[
+M^0 = I,
+\qquad
+M^i =
+\begin{bmatrix}
+    A_c^i & A_c^{i-1} B_c \\
+    0     & 0
+\end{bmatrix},
+\quad i \geq 1,
+\]
+which is easily verified by induction.
+Inserting this into the series gives
+\[
+e^{M T_s} = \sum_{i=0}^{\infty} \frac{T_s^i}{i!} M^i =
+\begin{bmatrix}
+    \sum_{i=0}^{\infty} \frac{T_s^i}{i!} A_c^i & \sum_{i=1}^{\infty} \frac{T_s^i}{i!} A_c^{i-1} B_c \\
+    0 & I
+\end{bmatrix}.
+\]
+The upper left block is $e^{A_c T_s} = A_d$.
+For the upper right block, we shift the index and use $\int_0^{T_s} \frac{\sigma^i}{i!} \, d\sigma = \frac{T_s^{i+1}}{(i+1)!}$ to integrate the series term by term
+\[
+\sum_{i=1}^{\infty} \frac{T_s^i}{i!} A_c^{i-1} B_c
+= \sum_{i=0}^{\infty} \frac{T_s^{i+1}}{(i+1)!} A_c^{i} B_c
+= \int_0^{T_s} \sum_{i=0}^{\infty} \frac{\sigma^i}{i!} A_c^{i} \, d\sigma \, B_c
+= \int_0^{T_s} e^{A_c \sigma} \, d\sigma \, B_c
+= B_d.
+\]
+Hence, both discrete-time matrices are obtained from a single matrix exponential
+\begin{equation} \label{eq:zoh_expm}
+\exp\left(
+\begin{bmatrix}
+    A_c & B_c \\
+    0   & 0
+\end{bmatrix}
+T_s
+\right)
+=
+\begin{bmatrix}
+    A_d & B_d \\
+    0   & I
+\end{bmatrix}.
+\end{equation}
+A constant affine term $b_c$ in the dynamics $\dot{x} = A_c x + B_c u + b_c$ is included in the same way by appending $b_c$ as an additional column, which corresponds to augmenting the state with a constant $1$, i.e.\ $\tilde{x} = [x; u; 1]$,
+\[
+\exp\left(
+\begin{bmatrix}
+    A_c & B_c & b_c \\
+    0   & 0   & 0   \\
+    0   & 0   & 0
+\end{bmatrix}
+T_s
+\right)
+=
+\begin{bmatrix}
+    A_d & B_d & b_d \\
+    0   & I   & 0   \\
+    0   & 0   & 1
+\end{bmatrix},
+\qquad
+b_d = \int_0^{T_s} e^{A_c \sigma} \, d\sigma \, b_c,
+\]
+which yields the discrete-time affine system $x_{k+1} = A_d x_k + B_d u_k + b_d$.
+For an LTV model, the matrices are typically frozen at $t_k$ on each sampling interval (or the variational equations are integrated numerically), and the augmented exponential is evaluated per stage to obtain $A_k$, $B_k$ and $b_k$.
+This discretization is then no longer exact.
 
 \newpage

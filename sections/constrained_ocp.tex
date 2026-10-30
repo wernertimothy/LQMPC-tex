@@ -1,0 +1,25 @@
+\section{Constrained linear-quadratic OCP}
+
+We now return to the full constraints OCP, re-introducing the inequality constraints that were dropped in the
+previous section. 
+
+\[
+\begin{aligned}
+& \underset{x_k, u_k}{\text{minimize}} & & \sum_{k=0}^{N} \frac{1}{2} \vxuone{k}\T \Hcoststacked{k} \vxuone{k} & &                      \\
+& \text{subject to}                    & & x_0 = \hat{x}                                                       & &                      \\
+&                                      & & x_{k+1} = A_k x_k + B_k u_k + b_k                                   & & ,k\in\Iset{0}{N-1}   \\
+&                                      & & \underline{x}_k \leq J_k^{bx} x_k \leq \bar{x}_k                    & & ,k\in\Iset{0}{N}     \\
+&                                      & & \underline{u}_k \leq J_k^{bu} u_k \leq \bar{u}_k                    & & ,k\in\Iset{0}{N-1}   \\
+&                                      & & D_k u_k + C_k x_k \leq d_k                                          & & ,k\in\Iset{0}{N}
+\end{aligned}
+\]
+
+The inequality constraints are divided into two categories.
+There are the $n_{bx}$ box constraints on the states and $n_{bu}$ box constraints on the inputs, which are mapped by the selection matrices $J_k^{bx}\in\R{n_{bx} \times n_x}$ and $J_k^{bu}\in\R{n_{bu} \times n_u}$, together with the lower bounds $\underline{x}_k\in\R{n_{bx}}$, $\underline{u}_k\in\R{n_{bu}}$ and upper bounds $\bar{x}_k\in\R{n_{bx}}$, $\bar{u}_k\in\R{n_{bu}}$ respectively.
+There are a number of $n_p$ polytopic constraints represented by the matrices $D_k\in\R{n_p \times n_u}$, $C_k\in\R{n_p \times n_x}$ and the vector $d_k\in\R{n_p}$.
+
+\subsection{The KKT-System}
+
+\paragraph{Slack Refomrulation}
+
+\subsection{The Primal-Dual IPM}
