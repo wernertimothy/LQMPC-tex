@@ -112,6 +112,7 @@ Since this paper focuses on sparsity-exploiting methods, we do not pursue conden
 For an in-depth discussion and implementation of this method, have a look at qpOASES~\cite{ferreau2014qpoases}.
 
 \subsection{The KKT System}
+\label{sec:kkt}
 
 In terms of numerical optimization, the OCP above is an equality-constrained QP, which is strictly convex in the decision variables $u_k$ and $x_k$.
 This holds because the cost function is quadratic in $u_k$ and $x_k$ with $H_k \succ 0$ for $k < N$ and $Q_N \succ 0$ by assumption and the equality constraints are affine in $u_k$ and $x_k$.

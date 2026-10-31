@@ -1,11 +1,10 @@
 \section{Constrained linear-quadratic OCP}
 
-We now return to the full constraints OCP, re-introducing the inequality constraints that were dropped in the
-previous section. 
+We now return to the fully constrained OCP, re-introducing the inequality constraints that were dropped in the previous section.
 
 \[
 \begin{aligned}
-& \underset{x_k, u_k}{\text{minimize}} & & \sum_{k=0}^{N} \frac{1}{2} \vxuone{k}\T \Hcoststacked{k} \vxuone{k} & &                      \\
+& \underset{u_k, x_k}{\text{minimize}} & & \sum_{k=0}^{N} \frac{1}{2} \vxuone{k}\T \Hcoststacked{k} \vxuone{k} & &                      \\
 & \text{subject to}                    & & x_0 = \hat{x}                                                       & &                      \\
 &                                      & & x_{k+1} = A_k x_k + B_k u_k + b_k                                   & & ,k\in\Iset{0}{N-1}   \\
 &                                      & & \underline{x}_k \leq J_k^{bx} x_k \leq \bar{x}_k                    & & ,k\in\Iset{0}{N}     \\
@@ -14,19 +13,134 @@ previous section.
 \end{aligned}
 \]
 
-The inequality constraints are divided into two categories.
-There are the $n_{bx}$ box constraints on the states and $n_{bu}$ box constraints on the inputs, which are mapped by the selection matrices $J_k^{bx}\in\R{n_{bx} \times n_x}$ and $J_k^{bu}\in\R{n_{bu} \times n_u}$, together with the lower bounds $\underline{x}_k\in\R{n_{bx}}$, $\underline{u}_k\in\R{n_{bu}}$ and upper bounds $\bar{x}_k\in\R{n_{bx}}$, $\bar{u}_k\in\R{n_{bu}}$ respectively.
-There are a number of $n_p$ polytopic constraints represented by the matrices $D_k\in\R{n_p \times n_u}$, $C_k\in\R{n_p \times n_x}$, together with the lower bounds $\underline{d}_k\in\R{n_p}$ and upper bounds $\bar{d}_k\in\R{n_p}$.
+The inequality constraints fall into box constraints on states and inputs and polytopic constraints, as introduced in Section~\ref{sec:lq_ocp}.
 
-\subsection{The KKT-System}
+\subsection{The KKT System}
 
-Adding constraints in the form of the box and polytopic inequalities to the OCP does not change the fact that it is strictly convex.
-Therefore the optimal solution is still full described by the KKT conditions.
-To arrive at full KKT system we will start with a reformulation of the inequality conditions.
+Adding the box and polytopic inequalities to the OCP preserves strict convexity, so the solution is unique whenever the feasible set is nonempty, which we assume from here on.
+Since all constraints are affine, the KKT conditions remain necessary and sufficient.
+To arrive at the full KKT system we first reformulate the inequality constraints.
 
 \paragraph{Slack reformulation.}
+As for the unconstrained OCP in Section~\ref{sec:kkt}, the derivation is stagewise.
+We collect the cost terms of the stage variable $y_k = [u_k; x_k]$, in input-major ordering, as
+\[
+    H_k = \begin{bmatrix} R_k & S_k \\ S_k\T & Q_k \end{bmatrix},
+    \qquad
+    h_k := \begin{bmatrix} r_k \\ q_k \end{bmatrix}.
+\]
+All inequality constraints of stage $k$ act on $y_k$ only.
+For $k\in\Iset{0}{N-1}$, we stack the input boxes, the state boxes and the polytopic constraints into one constraint matrix
+\[
+    \Jg{k} :=
+    \begin{bmatrix}
+        J_k^{bu} & 0        \\
+        0        & J_k^{bx} \\
+        D_k      & C_k
+    \end{bmatrix}
+    =: \begin{bmatrix} \Jgu{k} & \Jgx{k} \end{bmatrix}
+    \in \R{m_k \times (n_u + n_x)},
+    \qquad
+    m_k := n_{bu} + n_{bx} + n_p ,
+\]
+so that the two-sided constraints read $\underline{g}_k \leq \Jg{k} y_k \leq \bar{g}_k$ with
+\[
+    \bar{g}_k := \begin{bmatrix} \bar{u}_k \\ \bar{x}_k \\ \bar{d}_k \end{bmatrix},
+    \qquad
+    \underline{g}_k := \begin{bmatrix} \underline{u}_k \\ \underline{x}_k \\ \underline{d}_k \end{bmatrix}.
+\]
+Writing the two sides as one-sided constraints and introducing the \textit{slack vectors} $\bar{t}_k, \underline{t}_k \in \R{m_k}$ yields
+\[
+    \Jg{k} y_k + \bar{t}_k = \bar{g}_k,
+    \qquad
+    -\Jg{k} y_k + \underline{t}_k = -\underline{g}_k,
+    \qquad
+    \bar{t}_k,\, \underline{t}_k \geq 0 .
+\]
+Both sides share the same matrix $\Jg{k}$ and differ only in sign, so it is stored once.
+This pays off in the Newton step of the IPM, see Section~\ref{sec:ipm}.
+The row blocks of $\Jg{k}$ are of two kinds: the box rows are rows of an identity matrix, the polytopic rows are dense.
+The column partition $\begin{bmatrix} \Jgu{k} & \Jgx{k} \end{bmatrix}$ determines which blocks of the stage Hessian a row touches.
+At the terminal stage there is no input, so as in Section~\ref{sec:kkt} we have $y_N = x_N$, $H_N = Q_N$ and $h_N = q_N$.
+Hence $\Jg{N} = \Jgx{N} = [J_N^{bx}; C_N]$ has $m_N := n_{bx} + n_p$ rows, with $\bar{g}_N := [\bar{x}_N; \bar{d}_N]$ and $\underline{g}_N := [\underline{x}_N; \underline{d}_N]$.
+If a bound is absent on one side, the corresponding row, slack and multiplier are dropped from that side only.
+We keep the common dimension $m_k$ for notational simplicity.
 
-Similar to the unconstrained OCP, the derivation will follow a stage-wise convention.
- 
+\paragraph{The Lagrangian.}
+We attach the multipliers $\pi_0 \in \R{n_x}$ to the initial condition and $\pi_{k+1} \in \R{n_x}$ to the dynamic constraint of stage $k$.
+The slack equalities receive $\bar{\lambda}_k, \underline{\lambda}_k \in \R{m_k}$.
+The sign constraints on the slacks receive $\bar{\nu}_k, \underline{\nu}_k \in \R{m_k}$, which are required to be non-negative.
+The Lagrangian is
+\begin{equation} \label{eq:lagrangian}
+\begin{aligned}
+    \mathcal{L} = \sum_{k=0}^{N} \Big[
+        & \frac{1}{2}\, y_k\T H_k y_k + h_k\T y_k
+          + \bar{\lambda}_k\T\big(\Jg{k} y_k + \bar{t}_k - \bar{g}_k\big)
+          + \underline{\lambda}_k\T\bigl(-\Jg{k} y_k + \underline{t}_k + \underline{g}_k\bigr) \\
+        & - \bar{\nu}_k\T \bar{t}_k - \underline{\nu}_k\T \underline{t}_k \Big]
+      + \pi_0\T(\hat{x}-x_0)
+      + \sum_{k=0}^{N-1} \pi_{k+1}\T\big(A_k x_k + B_k u_k + b_k - x_{k+1}\big) .
+\end{aligned}
+\end{equation}
+The signs of the initial-condition and dynamics terms match the unconstrained Lagrangian, so the block $\mathcal{A}$ of Section~\ref{sec:kkt} carries over unchanged.
+
+\paragraph{Stationarity in the primal variables.}
+The variables $u_k$ and $x_k$ appear in stage $k$ through the cost, the inequality rows and the dynamics.
+In addition, $x_{k+1}$ appears in the dynamics equation of stage $k$ with coefficient $-\pi_{k+1}$.
+Shifting the summation index,
+\[
+    -\sum_{k=0}^{N-1}\pi_{k+1}\T x_{k+1} - \pi_0\T x_0 = -\sum_{k=0}^{N}\pi_k\T x_k ,
+\]
+so that every $x_k$ is accompanied by $-\pi_k$, including $x_0$ and $x_N$.
+Differentiating \eqref{eq:lagrangian} with respect to $u_k$ and $x_k$ separately, and using the column partition $\Jg{k} = \begin{bmatrix} \Jgu{k} & \Jgx{k} \end{bmatrix}$, gives
+\begin{align}
+    \nabla_{u_k}\mathcal{L} &= R_k u_k + S_k x_k + r_k + \Jgu{k}\T(\bar{\lambda}_k - \underline{\lambda}_k) + B_k\T \pi_{k+1} = 0, && k\in\Iset{0}{N-1}, \label{eq:stat_u}\\
+    \nabla_{x_k}\mathcal{L} &= Q_k x_k + S_k\T u_k + q_k + \Jgx{k}\T(\bar{\lambda}_k - \underline{\lambda}_k) + A_k\T \pi_{k+1} - \pi_k = 0, && k\in\Iset{0}{N-1}, \label{eq:stat_x}\\
+    \nabla_{x_N}\mathcal{L} &= Q_N x_N + q_N + \Jgx{N}\T(\bar{\lambda}_N - \underline{\lambda}_N) - \pi_N = 0. && \label{eq:stat_x_N}
+\end{align}
+Both sides of a constraint enter only through the difference $\bar{\lambda}_k - \underline{\lambda}_k$, because the lower-bound constraint carries the matrix $-\Jg{k}$.
+With $G_k$ and $E_k$ from Section~\ref{sec:kkt}, equations \eqref{eq:stat_u} and \eqref{eq:stat_x} combine into the compact stage form
+\begin{equation} \label{eq:stat_y}
+    H_k y_k + h_k + \Jg{k}\T(\bar{\lambda}_k - \underline{\lambda}_k) + G_k\T \pi_{k+1} - E_k\T \pi_k = 0 .
+\end{equation}
+
+\paragraph{Stationarity in the slacks.}
+The slacks enter $\mathcal{L}$ linearly, so
+\[
+    \nabla_{\bar{t}_k}\mathcal{L} = \bar{\lambda}_k - \bar{\nu}_k = 0 ,
+    \qquad
+    \nabla_{\underline{t}_k}\mathcal{L} = \underline{\lambda}_k - \underline{\nu}_k = 0 .
+\]
+Hence $\bar{\nu}_k = \bar{\lambda}_k$ and $\underline{\nu}_k = \underline{\lambda}_k$:
+the multiplier of the sign constraint is the multiplier of the inequality itself, and $\bar{\nu}_k$, $\underline{\nu}_k$ can be eliminated.
+For each side, the sign constraints contribute non-negativity of the multiplier and the \textit{complementarity} condition, which read
+\[
+    \bar{\lambda}_k \geq 0,\quad \underline{\lambda}_k \geq 0,\qquad
+    \bar{\lambda}_k \odot \bar{t}_k = 0,\quad \underline{\lambda}_k \odot \underline{t}_k = 0 ,
+\]
+where $\odot$ is the elementwise product.
+With $\bar{t}_k = \bar{g}_k - \Jg{k} y_k$ these are the familiar conditions of the original inequality $\Jg{k} y_k \leq \bar{g}_k$:
+non-negative multipliers that vanish on every inactive constraint.
+
+\paragraph{KKT system.}
+Stationarity, primal feasibility, complementarity and the sign conditions together state that a point is optimal if and only if
+\begin{subequations}\label{eq:kkt}
+\begin{align}
+    H_k y_k + h_k + \Jg{k}\T(\bar{\lambda}_k - \underline{\lambda}_k) + G_k\T \pi_{k+1} - E_k\T \pi_k &= 0, && k\in\Iset{0}{N-1}, \label{eq:kkt_stat}\\
+    Q_N x_N + q_N + \Jgx{N}\T(\bar{\lambda}_N - \underline{\lambda}_N) - \pi_N &= 0, && \label{eq:kkt_stat_N}\\
+    \hat{x} - x_0 &= 0, && \label{eq:kkt_init}\\
+    A_k x_k + B_k u_k + b_k - x_{k+1} &= 0, && k\in\Iset{0}{N-1}, \label{eq:kkt_dyn}\\
+    \Jg{k} y_k + \bar{t}_k - \bar{g}_k &= 0, && k\in\Iset{0}{N}, \label{eq:kkt_slack_up}\\
+    -\Jg{k} y_k + \underline{t}_k + \underline{g}_k &= 0, && k\in\Iset{0}{N}, \label{eq:kkt_slack_lo}\\
+    \bar{\lambda}_k \odot \bar{t}_k = \underline{\lambda}_k \odot \underline{t}_k &= 0, && k\in\Iset{0}{N}, \label{eq:kkt_compl}\\
+    \bar{\lambda}_k,\, \underline{\lambda}_k,\, \bar{t}_k,\, \underline{t}_k &\geq 0, && k\in\Iset{0}{N}. \label{eq:kkt_sign}
+\end{align}
+\end{subequations}
+Equations \eqref{eq:kkt_stat}--\eqref{eq:kkt_compl} form a square system of nonlinear equations in the unknowns $y_k$, $\pi_k$, $\bar{\lambda}_k$, $\underline{\lambda}_k$, $\bar{t}_k$ and $\underline{t}_k$.
+Only the complementarity products \eqref{eq:kkt_compl} are nonlinear, since all other equations are affine in the unknowns.
+The sign conditions \eqref{eq:kkt_sign} are inequalities and are not part of this system.
 
 \subsection{The Primal-Dual IPM}
+\label{sec:ipm}
+
+\newpage

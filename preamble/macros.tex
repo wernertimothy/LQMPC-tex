@@ -33,8 +33,10 @@
 \newcommand{\LP}[1]{L_{P,#1}}                 % Cholesky factor of the cost-to-go, P_k = L_{P,k} L_{P,k}^T
 \newcommand{\LY}[1]{{L^{Y}_{#1}}}              % blocks of the Cholesky factor L_Y of the normal matrix Y
 \newcommand{\vY}{v^{Y}}                       % forward-substitution vector, L_Y v^Y = beta
-\newcommand{\Jg}[1]{J^{g}_{#1}}                % polytopic constraint rows [D_k C_k]
-\newcommand{\Hbar}[1]{\bar{H}_{#1}}            % IPM-augmented stage Hessian H_k + G_k^T Sigma_k G_k
+\newcommand{\Jg}[1]{{J^{g}_{#1}}}              % stacked inequality constraint matrix of stage k
+\newcommand{\Jgu}[1]{{J^{gu}_{#1}}}            % input columns of J^g_k
+\newcommand{\Jgx}[1]{{J^{gx}_{#1}}}            % state columns of J^g_k
+\newcommand{\Hbar}[1]{\bar{H}_{#1}}            % IPM-augmented stage Hessian H_k + J^g_k^T Sigma_k J^g_k
 
 % colors
 \definecolor{darkblue}{rgb}{0.0,0.0,0.3}
