@@ -58,7 +58,7 @@ Writing the two sides as one-sided constraints and introducing the \textit{slack
     \bar{t}_k,\, \underline{t}_k \geq 0 .
 \]
 Both sides share the same matrix $\Jg{k}$ and differ only in sign, so it is stored once.
-This pays off in the Newton step of the IPM, see Section~\ref{sec:ipm}.
+This pays off in the Newton step of the interior-point method (IPM), see Section~\ref{sec:ipm}.
 The row blocks of $\Jg{k}$ are of two kinds: the box rows are rows of an identity matrix, the polytopic rows are dense.
 The column partition $\begin{bmatrix} \Jgu{k} & \Jgx{k} \end{bmatrix}$ determines which blocks of the stage Hessian a row touches.
 At the terminal stage there is no input, so as in Section~\ref{sec:kkt} we have $y_N = x_N$, $H_N = Q_N$ and $h_N = q_N$.
@@ -142,5 +142,139 @@ The sign conditions \eqref{eq:kkt_sign} are inequalities and are not part of thi
 
 \subsection{The Primal-Dual IPM}
 \label{sec:ipm}
+
+Equations \eqref{eq:kkt_stat}--\eqref{eq:kkt_slack_lo} are affine in the unknowns, but they do not determine them: the slacks and multipliers of the inequalities are fixed only by the complementarity condition \eqref{eq:kkt_compl} together with the sign conditions \eqref{eq:kkt_sign}.
+This is where the entire difficulty sits.
+To see why, consider a single inequality, that is, one component pair $(\lambda, t)$ of $(\bar{\lambda}_k, \bar{t}_k)$ or $(\underline{\lambda}_k, \underline{t}_k)$.
+The conditions
+\[
+    \lambda \geq 0, \qquad t \geq 0, \qquad \lambda\, t = 0
+\]
+are satisfied exactly on the two non-negative half-axes $\{(\lambda, 0) : \lambda \geq 0\} \cup \{(0, t) : t \geq 0\}$.
+This set is an L-shape with a corner at the origin.
+On the arm $t = 0$ the inequality is active and its multiplier $\lambda$ is free to be positive.
+On the arm $\lambda = 0$ the inequality is inactive.
+With $n_c := 2\sum_{k=0}^{N} m_k$ such pairs there are $2^{n_c}$ ways of assigning each pair to an arm.
+For a fixed assignment, \eqref{eq:kkt_stat}--\eqref{eq:kkt_compl} reduce to a linear system, in which the active inequalities act as equality constraints and the inactive ones are dropped.
+A solution of this system solves the OCP if and only if it satisfies the sign conditions \eqref{eq:kkt_sign}.
+Finding the correct assignment is the \textit{active-set problem}, which is combinatorial~\cite{ferreau2014qpoases}.
+
+Applying Newton's method directly to \eqref{eq:kkt_stat}--\eqref{eq:kkt_compl} does not remove this difficulty.
+Every solution of such a linear system is a root of \eqref{eq:kkt_stat}--\eqref{eq:kkt_compl}, and Newton's method knows nothing about the sign conditions \eqref{eq:kkt_sign}: it may converge to a root with negative components, or leave the non-negative quadrant on the way.
+In addition, the gradient $(t, \lambda)$ of the product $\lambda\, t$ vanishes at the corner, so the linearization degenerates there.
+
+\paragraph{Perturbation and the central path.}
+The idea of an interior-point method~\cite{wright1997primal,nocedal2006numerical} is to replace the L-shape by a smooth curve.
+Such methods are well established for MPC~\cite{rao1998application,domahidi2012efficient,frison2020hpipm}.
+For a parameter $\tau > 0$ we relax the complementarity condition to
+\begin{equation} \label{eq:kkt_central}
+    \bar{\lambda}_k \odot \bar{t}_k = \underline{\lambda}_k \odot \underline{t}_k = \tau \mathbf{1}, \qquad k\in\Iset{0}{N},
+\end{equation}
+where $\mathbf{1}$ is the vector of ones.
+For a single pair this reads $\lambda\, t = \tau$, which is a hyperbola.
+In the open positive quadrant it approaches both arms and rounds off the corner, and for $\tau \to 0$ it collapses onto the L-shape.
+The hyperbola has a second branch in the negative quadrant.
+The sign conditions are therefore replaced by their strict version
+\begin{equation} \label{eq:sign_strict}
+    \bar{\lambda}_k,\, \underline{\lambda}_k,\, \bar{t}_k,\, \underline{t}_k > 0, \qquad k\in\Iset{0}{N},
+\end{equation}
+which selects the correct branch.
+This is not an additional equation but a restriction of the domain, which the algorithm has to maintain explicitly, as we will see when choosing the step length.
+Let $F_\tau(z) = 0$ denote the system \eqref{eq:kkt_stat}--\eqref{eq:kkt_slack_lo} together with \eqref{eq:kkt_central}, where $z := [y; \pi; \bar{\lambda}; \underline{\lambda}; \bar{t}; \underline{t}]$ stacks all unknowns over the stages.
+We assume that a strictly feasible point exists, i.e.\ a point that satisfies the initial condition, the dynamics and \eqref{eq:kkt_slack_up}--\eqref{eq:kkt_slack_lo} with strictly positive slacks (Slater's condition~\cite{boyd2004convex}).
+This excludes equal lower and upper bounds, and it requires $\hat{x}$ to lie strictly inside the state bounds of stage $0$.
+Together with the strict convexity from above, $F_\tau(z) = 0$ then has a unique solution $z(\tau)$ satisfying \eqref{eq:sign_strict} for every $\tau > 0$.
+The curve $\tau \mapsto z(\tau)$ is called the \textit{central path}.
+Along it the slacks and multipliers stay strictly positive, and it converges to a solution of \eqref{eq:kkt} as $\tau \to 0$.
+The arm to which each pair belongs is no longer chosen by a search, but is decided by the path itself.
+
+\paragraph{Barrier interpretation.}
+The perturbed system is the KKT system of a \textit{barrier problem}.
+Take the slack reformulation, drop the sign constraints on the slacks, and add $-\tau\, \mathbf{1}\T\log \bar{t}_k - \tau\, \mathbf{1}\T\log \underline{t}_k$ to the stage cost, where the logarithm acts elementwise.
+The logarithm is only defined for positive arguments, so the sign constraints are enforced implicitly.
+The Lagrangian of this problem is \eqref{eq:lagrangian} with $\bar{\nu}_k = \underline{\nu}_k = 0$ and the barrier terms added, so that its stationarity conditions in the primal variables and the dynamics are unchanged, whereas stationarity in the slacks gives
+\[
+    -\tau\, \bar{t}_k^{-1} + \bar{\lambda}_k = 0, \qquad -\tau\, \underline{t}_k^{-1} + \underline{\lambda}_k = 0 ,
+\]
+with the inverse taken elementwise.
+Multiplying elementwise by the slacks gives \eqref{eq:kkt_central}.
+The primal-dual method does not eliminate $\lambda$ via $\lambda = \tau / t$, but keeps it as an independent unknown.
+The equations then stay bilinear, $\lambda\, t = \tau$, instead of the strongly nonlinear $\lambda - \tau / t = 0$, which becomes steep for $t \to 0$.
+Newton's method behaves much better on the former.
+
+\paragraph{Duality measure.}
+The parameter $\tau$ is tied to the \textit{duality measure}~\cite{wright1997primal}
+\[
+    \mu := \frac{1}{n_c}\sum_{k=0}^{N} \Big( \bar{\lambda}_k\T \bar{t}_k + \underline{\lambda}_k\T \underline{t}_k \Big) ,
+\]
+which equals $\tau$ on the central path.
+It also bounds the suboptimality.
+Let $f(y) := \sum_{k=0}^{N-1} l_k(u_k, x_k) + l_N(x_N)$, and let $z$ satisfy \eqref{eq:kkt_stat}--\eqref{eq:kkt_slack_lo} with non-negative multipliers and slacks.
+Let $y^*$ be the solution of the OCP, with slacks $\bar{t}_k^* = \bar{g}_k - \Jg{k} y_k^* \geq 0$ and $\underline{t}_k^* = \Jg{k} y_k^* - \underline{g}_k \geq 0$.
+Convexity of $f$ gives
+\[
+    f(y^*) \geq f(y) + \sum_{k=0}^{N} (H_k y_k + h_k)\T (y_k^* - y_k) .
+\]
+Insert \eqref{eq:stat_y}, \eqref{eq:stat_x_N} for $H_k y_k + h_k$.
+The terms with $\pi$ add up to zero after an index shift, because $y$ and $y^*$ satisfy the same initial condition and the same affine dynamics.
+Moreover, $\Jg{k}(y_k^* - y_k) = \bar{t}_k - \bar{t}_k^*$ and $\Jg{k}(y_k^* - y_k) = \underline{t}_k^* - \underline{t}_k$, which leaves
+\[
+    f(y^*) \geq f(y) - \sum_{k=0}^{N}\Big( \bar{\lambda}_k\T \bar{t}_k + \underline{\lambda}_k\T \underline{t}_k \Big)
+        + \sum_{k=0}^{N}\Big( \bar{\lambda}_k\T \bar{t}_k^* + \underline{\lambda}_k\T \underline{t}_k^* \Big)
+    \geq f(y) - n_c\, \mu ,
+\]
+since the multipliers and $\bar{t}_k^*$, $\underline{t}_k^*$ are non-negative.
+Hence $f(y) - f(y^*) \leq n_c\, \mu$.
+The quantity $n_c\, \mu$ is thus a certified bound on the suboptimality of every iterate that is feasible in the primal and the dual sense, and driving $\mu$ to zero while reaching feasibility is the goal of the method.
+
+\paragraph{Following the path.}
+The perturbed system $F_\tau(z) = 0$ is smooth, and its only nonlinearity is the bilinear product \eqref{eq:kkt_central}.
+Newton's method is therefore the natural tool.
+We neither can nor need to solve $F_\tau(z) = 0$ exactly for every $\tau$.
+Instead, starting from an iterate $z$ that satisfies \eqref{eq:sign_strict}, we take a Newton step towards the point $z(\tau)$ on the central path for a $\tau$ below the current $\mu$, move as far as the strict positivity allows, and repeat.
+This requires three decisions: the target $\tau$, the search direction and the step length.
+The search direction is the solution of a linear system, which we derive next.
+The choice of $\tau$ and of the step length is the subject of Mehrotra's predictor-corrector scheme~\cite{mehrotra1992implementation}.
+
+\paragraph{Residuals.}
+We evaluate the KKT conditions at the current iterate $z$ and collect the violations of the individual equations in the \textit{residuals}.
+For the stationarity of the stage variable we write, with the convention $G_N := 0$, so that the term with the nonexistent $\pi_{N+1}$ drops out,
+\[
+    \rs{k} := H_k y_k + h_k + \Jg{k}\T(\bar{\lambda}_k - \underline{\lambda}_k) + G_k\T \pi_{k+1} - E_k\T \pi_k ,
+    \qquad k\in\Iset{0}{N},
+\]
+which covers \eqref{eq:kkt_stat} and \eqref{eq:kkt_stat_N} at once.
+The dynamics and the initial condition, the slack equations and the perturbed complementarity yield
+\begin{align*}
+    \rb{0} &:= \hat{x} - E_0 y_0 , &
+    \rb{k+1} &:= G_k y_k + b_k - E_{k+1} y_{k+1} , && k\in\Iset{0}{N-1}, \\
+    \rgup{k} &:= \Jg{k} y_k + \bar{t}_k - \bar{g}_k , &
+    \rglo{k} &:= -\Jg{k} y_k + \underline{t}_k + \underline{g}_k , && k\in\Iset{0}{N}, \\
+    \rcup{k} &:= \bar{\lambda}_k \odot \bar{t}_k - \tau \mathbf{1} , &
+    \rclo{k} &:= \underline{\lambda}_k \odot \underline{t}_k - \tau \mathbf{1} , && k\in\Iset{0}{N}.
+\end{align*}
+The iterate solves $F_\tau(z) = 0$ if and only if all residuals vanish.
+In the following, $\bar{\Lambda}_k := \operatorname{diag}(\bar{\lambda}_k)$ and $\bar{T}_k := \operatorname{diag}(\bar{t}_k)$, and likewise $\underline{\Lambda}_k$ and $\underline{T}_k$.
+
+\paragraph{Newton step in delta form.}
+Newton's method linearizes $F_\tau$ at the current iterate $z$ and solves $F_\tau(z) + \frac{\partial}{\partial z} F_\tau(z)\, \Delta z = 0$ for the step $\Delta z$.
+All equations except the complementarity are affine in $z$, so their linearization is exact.
+For the complementarity, the derivative of $\bar{\lambda}_k \odot \bar{t}_k$ with respect to $(\bar{\lambda}_k, \bar{t}_k)$ is $(\bar{T}_k, \bar{\Lambda}_k)$, i.e.\ the product is linearized to $\bar{\lambda}_k \odot \bar{t}_k + \bar{T}_k \Delta\bar{\lambda}_k + \bar{\Lambda}_k \Delta\bar{t}_k$, and likewise for the lower side.
+Written stage by stage, the Newton step is the solution of
+\begin{subequations} \label{eq:newton_delta}
+\begin{align}
+    H_k \Delta y_k + \Jg{k}\T(\Delta\bar{\lambda}_k - \Delta\underline{\lambda}_k) + G_k\T \Delta\pi_{k+1} - E_k\T \Delta\pi_k &= -\rs{k} , && k\in\Iset{0}{N}, \label{eq:nd_stat}\\
+    -E_0 \Delta y_0 &= -\rb{0} , && \label{eq:nd_init}\\
+    G_k \Delta y_k - E_{k+1}\Delta y_{k+1} &= -\rb{k+1} , && k\in\Iset{0}{N-1}, \label{eq:nd_dyn}\\
+    \Jg{k} \Delta y_k + \Delta\bar{t}_k &= -\rgup{k} , && k\in\Iset{0}{N}, \label{eq:nd_up}\\
+    -\Jg{k} \Delta y_k + \Delta\underline{t}_k &= -\rglo{k} , && k\in\Iset{0}{N}, \label{eq:nd_lo}\\
+    \bar{T}_k \Delta\bar{\lambda}_k + \bar{\Lambda}_k \Delta\bar{t}_k &= -\rcup{k} , && k\in\Iset{0}{N}, \label{eq:nd_cup}\\
+    \underline{T}_k \Delta\underline{\lambda}_k + \underline{\Lambda}_k \Delta\underline{t}_k &= -\rclo{k} , && k\in\Iset{0}{N}. \label{eq:nd_clo}
+\end{align}
+\end{subequations}
+The unknowns are the steps of all variables, and the right-hand side consists of the residuals.
+The coefficient matrix depends on the iterate only through $\bar{\Lambda}_k, \bar{T}_k, \underline{\Lambda}_k, \underline{T}_k$.
+System \eqref{eq:newton_delta} is called the \textit{delta form} because its solution is the step itself.
+Predictor and corrector below differ in the complementarity residuals $\rcup{k}$ and $\rclo{k}$ only.
 
 \newpage
