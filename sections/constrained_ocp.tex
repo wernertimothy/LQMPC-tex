@@ -240,7 +240,7 @@ The choice of $\tau$ and of the step length is the subject of Mehrotra's predict
 We evaluate the KKT conditions at the current iterate $z$ and collect the violations of the individual equations in the \textit{residuals}.
 For the stationarity of the stage variable we write, with the convention $G_N := 0$, so that the term with the nonexistent $\pi_{N+1}$ drops out,
 \[
-    \rs{k} := H_k y_k + h_k + \Jg{k}\T(\bar{\lambda}_k - \underline{\lambda}_k) + G_k\T \pi_{k+1} - E_k\T \pi_k ,
+    \rg{k} := H_k y_k + h_k + \Jg{k}\T(\bar{\lambda}_k - \underline{\lambda}_k) + G_k\T \pi_{k+1} - E_k\T \pi_k ,
     \qquad k\in\Iset{0}{N},
 \]
 which covers \eqref{eq:kkt_stat} and \eqref{eq:kkt_stat_N} at once.
@@ -248,10 +248,10 @@ The dynamics and the initial condition, the slack equations and the perturbed co
 \begin{align*}
     \rb{0} &:= \hat{x} - E_0 y_0 , &
     \rb{k+1} &:= G_k y_k + b_k - E_{k+1} y_{k+1} , && k\in\Iset{0}{N-1}, \\
-    \rgup{k} &:= \Jg{k} y_k + \bar{t}_k - \bar{g}_k , &
-    \rglo{k} &:= -\Jg{k} y_k + \underline{t}_k + \underline{g}_k , && k\in\Iset{0}{N}, \\
-    \rcup{k} &:= \bar{\lambda}_k \odot \bar{t}_k - \tau \mathbf{1} , &
-    \rclo{k} &:= \underline{\lambda}_k \odot \underline{t}_k - \tau \mathbf{1} , && k\in\Iset{0}{N}.
+    \rdup{k} &:= \Jg{k} y_k + \bar{t}_k - \bar{g}_k , &
+    \rdlo{k} &:= -\Jg{k} y_k + \underline{t}_k + \underline{g}_k , && k\in\Iset{0}{N}, \\
+    \rmup{k} &:= \bar{\lambda}_k \odot \bar{t}_k - \tau \mathbf{1} , &
+    \rmlo{k} &:= \underline{\lambda}_k \odot \underline{t}_k - \tau \mathbf{1} , && k\in\Iset{0}{N}.
 \end{align*}
 The iterate solves $F_\tau(z) = 0$ if and only if all residuals vanish.
 In the following, $\bar{\Lambda}_k := \operatorname{diag}(\bar{\lambda}_k)$ and $\bar{T}_k := \operatorname{diag}(\bar{t}_k)$, and likewise $\underline{\Lambda}_k$ and $\underline{T}_k$.
@@ -263,18 +263,18 @@ For the complementarity, the derivative of $\bar{\lambda}_k \odot \bar{t}_k$ wit
 Written stage by stage, the Newton step is the solution of
 \begin{subequations} \label{eq:newton_delta}
 \begin{align}
-    H_k \Delta y_k + \Jg{k}\T(\Delta\bar{\lambda}_k - \Delta\underline{\lambda}_k) + G_k\T \Delta\pi_{k+1} - E_k\T \Delta\pi_k &= -\rs{k} , && k\in\Iset{0}{N}, \label{eq:nd_stat}\\
+    H_k \Delta y_k + \Jg{k}\T(\Delta\bar{\lambda}_k - \Delta\underline{\lambda}_k) + G_k\T \Delta\pi_{k+1} - E_k\T \Delta\pi_k &= -\rg{k} , && k\in\Iset{0}{N}, \label{eq:nd_stat}\\
     -E_0 \Delta y_0 &= -\rb{0} , && \label{eq:nd_init}\\
     G_k \Delta y_k - E_{k+1}\Delta y_{k+1} &= -\rb{k+1} , && k\in\Iset{0}{N-1}, \label{eq:nd_dyn}\\
-    \Jg{k} \Delta y_k + \Delta\bar{t}_k &= -\rgup{k} , && k\in\Iset{0}{N}, \label{eq:nd_up}\\
-    -\Jg{k} \Delta y_k + \Delta\underline{t}_k &= -\rglo{k} , && k\in\Iset{0}{N}, \label{eq:nd_lo}\\
-    \bar{T}_k \Delta\bar{\lambda}_k + \bar{\Lambda}_k \Delta\bar{t}_k &= -\rcup{k} , && k\in\Iset{0}{N}, \label{eq:nd_cup}\\
-    \underline{T}_k \Delta\underline{\lambda}_k + \underline{\Lambda}_k \Delta\underline{t}_k &= -\rclo{k} , && k\in\Iset{0}{N}. \label{eq:nd_clo}
+    \Jg{k} \Delta y_k + \Delta\bar{t}_k &= -\rdup{k} , && k\in\Iset{0}{N}, \label{eq:nd_up}\\
+    -\Jg{k} \Delta y_k + \Delta\underline{t}_k &= -\rdlo{k} , && k\in\Iset{0}{N}, \label{eq:nd_lo}\\
+    \bar{T}_k \Delta\bar{\lambda}_k + \bar{\Lambda}_k \Delta\bar{t}_k &= -\rmup{k} , && k\in\Iset{0}{N}, \label{eq:nd_cup}\\
+    \underline{T}_k \Delta\underline{\lambda}_k + \underline{\Lambda}_k \Delta\underline{t}_k &= -\rmlo{k} , && k\in\Iset{0}{N}. \label{eq:nd_clo}
 \end{align}
 \end{subequations}
 The unknowns are the steps of all variables, and the right-hand side consists of the residuals.
 The coefficient matrix depends on the iterate only through $\bar{\Lambda}_k, \bar{T}_k, \underline{\Lambda}_k, \underline{T}_k$.
 System \eqref{eq:newton_delta} is called the \textit{delta form} because its solution is the step itself.
-Predictor and corrector below differ in the complementarity residuals $\rcup{k}$ and $\rclo{k}$ only.
+Predictor and corrector below differ in the complementarity residuals $\rmup{k}$ and $\rmlo{k}$ only.
 
 \newpage
